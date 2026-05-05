@@ -2,27 +2,9 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::io::{self, Write};
+use std::path::PathBuf;
 
 fn main() {
-    let mut executables = HashMap::new();
-
-    if let Ok(paths) = env::var("PATH") {
-        for path in env::split_paths(&paths) {
-            if let Ok(entries) = fs::read_dir(path) {
-                for entry in entries.flatten() {
-                    if let Ok(metadata) = entry.metadata() {
-                        if metadata.is_file() && is_executable(&entry.path()) {
-                            let executeble_name = entry.file_name().to_string_lossy().to_string();
-                            if !executables.contains_key(&executeble_name) {
-                                executables.insert(executeble_name, entry.path());
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     loop {
         print!("$ ");
         io::stdout().flush().unwrap();
@@ -43,18 +25,21 @@ fn main() {
                 if commands.len() > 1 {
                     if commands[1] == "exit" || commands[1] == "echo" || commands[1] == "type" {
                         println!("{} is a shell builtin", commands[1]);
-                    } else if executables.contains_key(commands[1]) {
-                        println!(
-                            "{} is {}",
-                            commands[1],
-                            executables
-                                .get(commands[1])
-                                .unwrap()
-                                .to_string_lossy()
-                                .to_string()
-                        )
                     } else {
-                        println!("{}: not found", commands[1]);
+                        let executables = build_executables();
+                        if executables.contains_key(commands[1]) {
+                            println!(
+                                "{} is {}",
+                                commands[1],
+                                executables
+                                    .get(commands[1])
+                                    .unwrap()
+                                    .to_string_lossy()
+                                    .to_string()
+                            )
+                        } else {
+                            println!("{}: not found", commands[1]);
+                        }
                     }
                 }
             }
@@ -66,18 +51,33 @@ fn main() {
     }
 }
 
+fn build_executables() -> HashMap<String, PathBuf> {
+    let mut executables = HashMap::new();
+
+    if let Ok(paths) = env::var("PATH") {
+        for path in env::split_paths(&paths) {
+            if let Ok(entries) = fs::read_dir(path) {
+                for entry in entries.flatten() {
+                    if let Ok(metadata) = entry.metadata() {
+                        if metadata.is_file() && is_executable(&entry.path()) {
+                            let executable_name = entry.file_name().to_string_lossy().to_string();
+                            if !executables.contains_key(&executable_name) {
+                                executables.insert(executable_name, entry.path());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    executables
+}
+
 #[cfg(unix)]
 fn is_executable(path: &std::path::Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
     path.metadata()
         .map(|m| m.permissions().mode() & 0o111 != 0)
-        .unwrap_or(false)
-}
-
-#[cfg(windows)]
-fn is_executable(path: &std::path::Path) -> bool {
-    path.extension()
-        .and_then(|ext| ext.to_str())
-        .map(|ext| ["exe", "bat", "cmd", "com"].contains(&ext.to_lowercase().as_str()))
         .unwrap_or(false)
 }
