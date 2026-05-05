@@ -16,9 +16,15 @@ impl AppState {
         self.cwd.as_ref()
     }
 
-    pub fn cd(&mut self, path: PathBuf) {
+    pub fn cd(&mut self, path: PathBuf) -> Result<(), String> {
+        if !path.exists() {
+            return Err(String::from("No such file or directory"));
+        }
+
         if path.starts_with("/") {
             self.cwd = Some(path);
         }
+
+        Ok(())
     }
 }

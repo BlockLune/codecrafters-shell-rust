@@ -1,6 +1,6 @@
-use std::process;
-use std::path::PathBuf;
 use std::env;
+use std::path::PathBuf;
+use std::process;
 
 use crate::exec::build_executables;
 use crate::state::AppState;
@@ -33,10 +33,7 @@ pub fn type_command(command: Option<&str>) {
             println!(
                 "{} is {}",
                 command,
-                executables
-                    .get(command)
-                    .unwrap()
-                    .display()
+                executables.get(command).unwrap().display()
             )
         } else {
             println!("{}: not found", command);
@@ -50,10 +47,15 @@ pub fn pwd_command(path: Option<&PathBuf>) {
 
 pub fn cd_command(path: Option<&str>, app_state: &mut AppState) {
     if path.is_none() {
-        app_state.cd(PathBuf::from(env::var("HOME").unwrap()));
+        let home_path = PathBuf::from(env::var("HOME").unwrap());
+        let _ = app_state
+            .cd(home_path.clone())
+            .map_err(|e| eprintln!("cd: {}: {}", home_path.display(), e));
         return;
     }
 
     let path = PathBuf::from(path.unwrap());
-    app_state.cd(path);
+    let _ = app_state
+        .cd(path.clone())
+        .map_err(|e| eprintln!("cd: {}: {}", path.display(), e));
 }
