@@ -10,8 +10,14 @@ fn main() {
         for path in env::split_paths(&paths) {
             if let Ok(entries) = fs::read_dir(path) {
                 for entry in entries.flatten() {
-                    let executeble_name = entry.file_name().to_string_lossy().to_string();
-                    executables.insert(executeble_name, entry.path());
+                    if let Ok(metadata) = entry.metadata() {
+                        if metadata.is_file() && is_executable(&entry.path()) {
+                            let executeble_name = entry.file_name().to_string_lossy().to_string();
+                            if !executables.contains_key(&executeble_name) {
+                                executables.insert(executeble_name, entry.path());
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -58,4 +64,20 @@ fn main() {
             None => (),
         }
     }
+}
+
+#[cfg(unix)]
+fn is_executable(path: &std::path::Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    path.metadata()
+        .map(|m| m.permissions().mode() & 0o111 != 0)
+        .unwrap_or(false)
+}
+
+#[cfg(windows)]
+fn is_executable(path: &std::path::Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ["exe", "bat", "cmd", "com"].contains(&ext.to_lowercase().as_str()))
+        .unwrap_or(false)
 }
