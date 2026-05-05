@@ -54,19 +54,24 @@ fn main() {
 fn build_executables() -> HashMap<String, PathBuf> {
     let mut executables = HashMap::new();
 
-    if let Ok(paths) = env::var("PATH") {
-        for path in env::split_paths(&paths) {
-            if let Ok(entries) = fs::read_dir(path) {
-                for entry in entries.flatten() {
-                    if let Ok(metadata) = entry.metadata() {
-                        if metadata.is_file() && is_executable(&entry.path()) {
-                            let executable_name = entry.file_name().to_string_lossy().to_string();
-                            if !executables.contains_key(&executable_name) {
-                                executables.insert(executable_name, entry.path());
-                            }
-                        }
-                    }
-                }
+    let paths = match env::var("PATH") {
+        Ok(p) => p,
+        Err(_) => return executables,
+    };
+
+    for entry in env::split_paths(&paths)
+        .filter_map(|path| fs::read_dir(path).ok())
+        .flatten()
+        .filter_map(|entry| entry.ok())
+    {
+        let Ok(metadata) = entry.metadata() else {
+            continue;
+        };
+
+        if metadata.is_file() && is_executable(&entry.path()) {
+            let executable_name = entry.file_name().to_string_lossy().to_string();
+            if !executables.contains_key(&executable_name) {
+                executables.insert(executable_name, entry.path());
             }
         }
     }
