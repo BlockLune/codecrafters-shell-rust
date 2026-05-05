@@ -2,8 +2,13 @@ use std::io::{self, Write};
 
 mod builtin;
 mod exec;
+mod state;
+
+use state::AppState;
 
 fn main() {
+    let mut app_state = AppState::default();
+
     loop {
         print!("$ ");
         io::stdout().flush().unwrap();
@@ -17,7 +22,8 @@ fn main() {
             Some(&"exit") => builtin::exit_command(),
             Some(&"echo") => builtin::echo_command(&commands[1..].join(" ")),
             Some(&"type") => builtin::type_command(commands.get(1).copied()),
-            Some(&"pwd") => builtin::pwd_command(),
+            Some(&"pwd") => builtin::pwd_command(app_state.get_cwd()),
+            Some(&"cd") => builtin::cd_command(commands.get(1).copied(), &mut app_state),
             Some(command) => exec::exec_external(command, &commands[1..]),
             None => (),
         }

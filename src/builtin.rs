@@ -1,7 +1,9 @@
 use std::process;
+use std::path::PathBuf;
 use std::env;
 
-use super::exec::build_executables;
+use crate::exec::build_executables;
+use crate::state::AppState;
 
 pub const BUILTIN_COMMANDS: &[&str] = &["exit", "echo", "type", "pwd"];
 
@@ -34,8 +36,7 @@ pub fn type_command(command: Option<&str>) {
                 executables
                     .get(command)
                     .unwrap()
-                    .to_string_lossy()
-                    .to_string()
+                    .display()
             )
         } else {
             println!("{}: not found", command);
@@ -43,8 +44,16 @@ pub fn type_command(command: Option<&str>) {
     }
 }
 
-pub fn pwd_command() {
-    if let Ok(path) = env::current_dir() {
-        println!("{}", path.to_string_lossy().to_string());
+pub fn pwd_command(path: Option<&PathBuf>) {
+    println!("{}", path.unwrap().display());
+}
+
+pub fn cd_command(path: Option<&str>, app_state: &mut AppState) {
+    if path.is_none() {
+        app_state.cd(PathBuf::from(env::var("HOME").unwrap()));
+        return;
     }
+
+    let path = PathBuf::from(path.unwrap());
+    app_state.cd(path);
 }
