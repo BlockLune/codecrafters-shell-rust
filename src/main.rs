@@ -39,11 +39,11 @@ fn exec_external(command: &str, args: &[&str]) {
 
     if output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
-        println!("{}", stdout);
+        print!("{}", stdout);
     }
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     if !stderr.is_empty() {
-        eprintln!("{}", stderr);
+        eprint!("{}", stderr);
     }
 }
