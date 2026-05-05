@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
+use std::process;
 
 pub fn build_executables() -> HashMap<String, PathBuf> {
     let mut executables = HashMap::new();
@@ -35,4 +36,28 @@ fn is_executable(path: &std::path::Path) -> bool {
     path.metadata()
         .map(|m| m.permissions().mode() & 0o111 != 0)
         .unwrap_or(false)
+}
+
+pub fn exec_external(command: &str, args: &[&str]) {
+    let executables = build_executables();
+
+    if !executables.contains_key(command) {
+        println!("{}: command not found", command);
+        return;
+    }
+
+    let output = process::Command::new(command)
+        .args(args)
+        .output()
+        .expect("failed to execute process");
+
+    if output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        print!("{}", stdout);
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if !stderr.is_empty() {
+        eprint!("{}", stderr);
+    }
 }
