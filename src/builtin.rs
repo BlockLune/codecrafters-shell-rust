@@ -46,15 +46,11 @@ pub fn pwd_command(path: Option<&PathBuf>) {
 }
 
 pub fn cd_command(path: Option<&str>, app_state: &mut AppState) {
-    if path.is_none() {
-        let home_path = PathBuf::from(env::var("HOME").unwrap());
-        let _ = app_state
-            .cd(home_path.clone())
-            .map_err(|e| eprintln!("cd: {}: {}", home_path.display(), e));
-        return;
-    }
+    let path = match path {
+        Some(path) => PathBuf::from(path),
+        None => PathBuf::from(env::var("HOME").unwrap())
+    };
 
-    let path = PathBuf::from(path.unwrap());
     let _ = app_state
         .cd(path.clone())
         .map_err(|e| eprintln!("cd: {}: {}", path.display(), e));
