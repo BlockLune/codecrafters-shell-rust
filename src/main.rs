@@ -1,8 +1,6 @@
-use std::collections::HashMap;
-use std::env;
-use std::fs;
 use std::io::{self, Write};
-use std::path::PathBuf;
+
+mod builtin;
 
 fn main() {
     loop {
@@ -15,74 +13,13 @@ fn main() {
         let commands: Vec<_> = command.split_whitespace().collect();
 
         match commands.first() {
-            Some(&"exit") => {
-                break;
-            }
-            Some(&"echo") => {
-                println!("{}", commands[1..].join(" "));
-            }
-            Some(&"type") => {
-                if commands.len() > 1 {
-                    if commands[1] == "exit" || commands[1] == "echo" || commands[1] == "type" {
-                        println!("{} is a shell builtin", commands[1]);
-                    } else {
-                        let executables = build_executables();
-                        if executables.contains_key(commands[1]) {
-                            println!(
-                                "{} is {}",
-                                commands[1],
-                                executables
-                                    .get(commands[1])
-                                    .unwrap()
-                                    .to_string_lossy()
-                                    .to_string()
-                            )
-                        } else {
-                            println!("{}: not found", commands[1]);
-                        }
-                    }
-                }
-            }
+            Some(&"exit") => builtin::exit_command(),
+            Some(&"echo") => builtin::echo_command(&commands[1..].join(" ")),
+            Some(&"type") => builtin::type_command(commands.get(1).map(|v| &**v)),
             Some(_) => {
                 println!("{}: command not found", commands[0]);
             }
             None => (),
         }
     }
-}
-
-fn build_executables() -> HashMap<String, PathBuf> {
-    let mut executables = HashMap::new();
-
-    let paths = match env::var("PATH") {
-        Ok(p) => p,
-        Err(_) => return executables,
-    };
-
-    for entry in env::split_paths(&paths)
-        .filter_map(|path| fs::read_dir(path).ok())
-        .flatten()
-        .filter_map(|entry| entry.ok())
-    {
-        let Ok(metadata) = entry.metadata() else {
-            continue;
-        };
-
-        if metadata.is_file() && is_executable(&entry.path()) {
-            let executable_name = entry.file_name().to_string_lossy().to_string();
-            if !executables.contains_key(&executable_name) {
-                executables.insert(executable_name, entry.path());
-            }
-        }
-    }
-
-    executables
-}
-
-#[cfg(unix)]
-fn is_executable(path: &std::path::Path) -> bool {
-    use std::os::unix::fs::PermissionsExt;
-    path.metadata()
-        .map(|m| m.permissions().mode() & 0o111 != 0)
-        .unwrap_or(false)
 }
