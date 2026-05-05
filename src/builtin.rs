@@ -57,9 +57,7 @@ fn build_executables() -> HashMap<String, PathBuf> {
 
         if metadata.is_file() && is_executable(&entry.path()) {
             let executable_name = entry.file_name().to_string_lossy().to_string();
-            if !executables.contains_key(&executable_name) {
-                executables.insert(executable_name, entry.path());
-            }
+            executables.entry(executable_name).or_insert(entry.path());
         }
     }
 
