@@ -40,7 +40,7 @@ fn is_executable(path: &std::path::Path) -> bool {
         .unwrap_or(false)
 }
 
-pub fn exec_external(command: &str, args: &[&str], app_state: &AppState) {
+pub fn exec_external(app_state: &AppState, command: &str, args: Vec<&str>) {
     let executables = build_executables();
 
     if !executables.contains_key(command) {

@@ -6,6 +6,7 @@ use std::{
 mod builtin;
 mod exec;
 mod state;
+mod tokenizer;
 
 use state::AppState;
 
@@ -19,19 +20,35 @@ fn main() {
         print!("$ ");
         io::stdout().flush().unwrap();
 
-        let mut command = String::new();
-        io::stdin().read_line(&mut command).unwrap();
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).unwrap();
 
-        let commands: Vec<_> = command.split_whitespace().collect();
+        let tokens = match tokenizer::tokenize(&input) {
+            Ok(tks) => tks,
+            Err(e) => {
+                eprintln!("ERROR: {}", e);
+                continue;
+            }
+        };
 
-        match commands.first() {
-            Some(&"exit") => builtin::exit_command(),
-            Some(&"echo") => builtin::echo_command(&commands[1..].join(" ")),
-            Some(&"type") => builtin::type_command(commands.get(1).copied()),
-            Some(&"pwd") => builtin::pwd_command(app_state.get_cwd()),
-            Some(&"cd") => builtin::cd_command(commands.get(1).copied(), &mut app_state),
-            Some(command) => exec::exec_external(command, &commands[1..], &app_state),
-            None => (),
+        if tokens.is_empty() {
+            continue;
+        }
+
+        let command = tokens.first().unwrap().as_str();
+        let args: Vec<&str> = tokens[1..].iter().map(|tk| tk.as_str()).collect();
+
+        if builtin::is_builtin(command) {
+            match command {
+                "exit" => builtin::exit_command(&mut app_state, args),
+                "echo" => builtin::echo_command(&mut app_state, args),
+                "type" => builtin::type_command(&mut app_state, args),
+                "pwd" => builtin::pwd_command(&mut app_state, args),
+                "cd" => builtin::cd_command(&mut app_state, args),
+                _ => (),
+            }
+        } else {
+            exec::exec_external(&app_state, command, args)
         }
     }
 }
