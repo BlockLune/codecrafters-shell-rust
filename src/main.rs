@@ -3,7 +3,6 @@ use std::{
     process,
 };
 
-mod builtin;
 mod exec;
 mod state;
 mod tokenizer;
@@ -39,15 +38,8 @@ fn main() {
         let command = tokens.first().unwrap().as_str();
         let args: Vec<&str> = tokens[1..].iter().map(|tk| tk.as_str()).collect();
 
-        if builtin::is_builtin(command) {
-            match command {
-                "exit" => builtin::exit_command(&mut app_state, args),
-                "echo" => builtin::echo_command(&mut app_state, args),
-                "type" => builtin::type_command(&mut app_state, args),
-                "pwd" => builtin::pwd_command(&mut app_state, args),
-                "cd" => builtin::cd_command(&mut app_state, args),
-                _ => (),
-            }
+        if exec::Builtin::is_builtin(command) {
+            exec::Builtin::from_str(command).unwrap().exec(&mut app_state, args);
         } else {
             exec::exec_external(&app_state, command, args)
         }
