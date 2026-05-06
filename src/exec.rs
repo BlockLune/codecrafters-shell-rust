@@ -4,38 +4,47 @@ use std::process;
 
 use crate::state::AppState;
 
-pub enum Builtin {
-    Exit,
-    Echo,
-    Type,
-    Pwd,
-    Cd,
+pub enum Command<'a> {
+    BuiltinExit,
+    BuiltinEcho,
+    BuiltinType,
+    BuiltinPwd,
+    BuiltinCd,
+    External(&'a str),
 }
 
-impl Builtin {
-    pub fn from_str(s: &str) -> Option<Self> {
+impl<'a> Command<'a> {
+    pub fn is_builtin(s: &'a str) -> bool {
+        match Self::from_str(s) {
+            Self::BuiltinExit => true,
+            Self::BuiltinEcho => true,
+            Self::BuiltinType => true,
+            Self::BuiltinPwd => true,
+            Self::BuiltinCd => true,
+            _ => false,
+        }
+    }
+
+    pub fn from_str(s: &'a str) -> Self {
         match s {
-            "exit" => Some(Self::Exit),
-            "echo" => Some(Self::Echo),
-            "type" => Some(Self::Type),
-            "pwd" => Some(Self::Pwd),
-            "cd" => Some(Self::Cd),
-            _ => None,
+            "exit" => Self::BuiltinExit,
+            "echo" => Self::BuiltinEcho,
+            "type" => Self::BuiltinType,
+            "pwd" => Self::BuiltinPwd,
+            "cd" => Self::BuiltinCd,
+            external_command => Self::External(external_command)
         }
     }
 
     pub fn exec(&self, app_state: &mut AppState, args: Vec<&str>) {
         match self {
-            Self::Exit => exit_command(app_state, args),
-            Self::Echo => echo_command(app_state, args),
-            Self::Type => type_command(app_state, args),
-            Self::Pwd => pwd_command(app_state, args),
-            Self::Cd => cd_command(app_state, args),
+            Self::BuiltinExit => exit_command(app_state, args),
+            Self::BuiltinEcho => echo_command(app_state, args),
+            Self::BuiltinType => type_command(app_state, args),
+            Self::BuiltinPwd => pwd_command(app_state, args),
+            Self::BuiltinCd => cd_command(app_state, args),
+            Self::External(command) => exec_external(app_state, command, args),
         }
-    }
-
-    pub fn is_builtin(s: &str) -> bool {
-        Self::from_str(s).is_some()
     }
 }
 
@@ -49,7 +58,7 @@ fn echo_command(_app_state: &mut AppState, args: Vec<&str>) {
 
 fn type_command(app_state: &mut AppState, args: Vec<&str>) {
     for command in args {
-        if Builtin::is_builtin(command) {
+        if Command::is_builtin(command) {
             println!("{} is a shell builtin", command);
         } else {
             let executables = app_state.get_external_executables();
@@ -88,7 +97,7 @@ fn cd_command(app_state: &mut AppState, args: Vec<&str>) {
         .map_err(|e| eprintln!("cd: {}: {}", path.display(), e));
 }
 
-pub fn exec_external(app_state: &AppState, command: &str, args: Vec<&str>) {
+fn exec_external(app_state: &AppState, command: &str, args: Vec<&str>) {
     if !app_state.get_external_executables().contains_key(command) {
         println!("{}: command not found", command);
         return;

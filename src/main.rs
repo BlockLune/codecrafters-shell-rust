@@ -37,11 +37,6 @@ fn main() {
 
         let command = tokens.first().unwrap().as_str();
         let args: Vec<&str> = tokens[1..].iter().map(|tk| tk.as_str()).collect();
-
-        if exec::Builtin::is_builtin(command) {
-            exec::Builtin::from_str(command).unwrap().exec(&mut app_state, args);
-        } else {
-            exec::exec_external(&app_state, command, args)
-        }
+        exec::Command::from_str(command).exec(&mut app_state, args);
     }
 }
