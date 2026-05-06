@@ -5,7 +5,7 @@ use std::process;
 use crate::exec::build_executables;
 use crate::state::AppState;
 
-pub const BUILTIN_COMMANDS: &[&str] = &["exit", "echo", "type", "pwd"];
+pub const BUILTIN_COMMANDS: &[&str] = &["exit", "echo", "type", "pwd", "cd"];
 
 pub fn is_builtin(command: &str) -> bool {
     BUILTIN_COMMANDS.contains(&command)
