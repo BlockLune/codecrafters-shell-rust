@@ -3,11 +3,12 @@ use std::{
     process,
 };
 
-mod exec;
+mod command;
 mod state;
 mod tokenizer;
 
 use state::AppState;
+use command::Command;
 
 fn main() {
     let mut app_state = AppState::default().unwrap_or_else(|e| {
@@ -37,6 +38,6 @@ fn main() {
 
         let command = tokens.first().unwrap().as_str();
         let args: Vec<&str> = tokens[1..].iter().map(|tk| tk.as_str()).collect();
-        exec::Command::from_str(command).exec(&mut app_state, args);
+        Command::from_str(command).exec(&mut app_state, args);
     }
 }
