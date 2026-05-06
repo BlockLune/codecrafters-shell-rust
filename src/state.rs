@@ -17,12 +17,19 @@ impl AppState {
     }
 
     pub fn cd(&mut self, path: PathBuf) -> Result<(), String> {
-        if !path.exists() {
-            return Err(String::from("No such file or directory"));
-        }
-
         if path.starts_with("/") {
+            if !path.exists() {
+                return Err(String::from("No such file or directory"));
+            }
             self.cwd = Some(path);
+        } else {
+            if self.cwd.is_none() {
+                return Err(String::from("No such file or directory"));
+            }
+            let Ok(canonicalized) = self.cwd.as_ref().unwrap().join(path).canonicalize() else {
+                return Err(String::from("No such file or directory"));
+            };
+            self.cwd = Some(canonicalized);
         }
 
         Ok(())
