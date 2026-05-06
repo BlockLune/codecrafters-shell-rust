@@ -2,7 +2,6 @@ use std::env;
 use std::path::PathBuf;
 use std::process;
 
-use crate::exec::build_executables;
 use crate::state::AppState;
 
 pub const BUILTIN_COMMANDS: &[&str] = &["exit", "echo", "type", "pwd", "cd"];
@@ -19,12 +18,12 @@ pub fn echo_command(_app_state: &mut AppState, args: Vec<&str>) {
     println!("{}", args.join(" "));
 }
 
-pub fn type_command(_app_state: &mut AppState, args: Vec<&str>) {
+pub fn type_command(app_state: &mut AppState, args: Vec<&str>) {
     for command in args {
         if is_builtin(command) {
             println!("{} is a shell builtin", command);
         } else {
-            let executables = build_executables();
+            let executables = app_state.get_external_executables();
             if executables.contains_key(command) {
                 println!(
                     "{} is {}",

@@ -1,19 +1,27 @@
 use std::env;
 use std::path::{Path, PathBuf};
+use std::collections::HashMap;
+use std::fs;
 
 pub struct AppState {
     cwd: PathBuf,
+    external_executables: HashMap<String, PathBuf>,
 }
 
 impl AppState {
     pub fn default() -> Result<Self, String> {
         let cwd =
             env::current_dir().map_err(|_| String::from("failed to get current directory"))?;
-        Ok(Self { cwd })
+        let external_executables = build_executables();
+        Ok(Self { cwd, external_executables })
     }
 
     pub fn get_cwd(&self) -> &Path {
         &self.cwd
+    }
+
+    pub fn get_external_executables(&self) -> &HashMap<String, PathBuf> {
+        &self.external_executables
     }
 
     pub fn cd(&mut self, path: PathBuf) -> Result<(), String> {
@@ -35,4 +43,38 @@ impl AppState {
 
         Ok(())
     }
+}
+
+fn build_executables() -> HashMap<String, PathBuf> {
+    let mut executables = HashMap::new();
+
+    let paths = match env::var("PATH") {
+        Ok(p) => p,
+        Err(_) => return executables,
+    };
+
+    for entry in env::split_paths(&paths)
+        .filter_map(|path| fs::read_dir(path).ok())
+        .flatten()
+        .filter_map(|entry| entry.ok())
+    {
+        let Ok(metadata) = entry.metadata() else {
+            continue;
+        };
+
+        if metadata.is_file() && is_executable(&entry.path()) {
+            let executable_name = entry.file_name().to_string_lossy().to_string();
+            executables.entry(executable_name).or_insert(entry.path());
+        }
+    }
+
+    executables
+}
+
+#[cfg(unix)]
+fn is_executable(path: &std::path::Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    path.metadata()
+        .map(|m| m.permissions().mode() & 0o111 != 0)
+        .unwrap_or(false)
 }
