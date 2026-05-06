@@ -24,7 +24,7 @@ fn main() {
             Some(&"type") => builtin::type_command(commands.get(1).copied()),
             Some(&"pwd") => builtin::pwd_command(app_state.get_cwd()),
             Some(&"cd") => builtin::cd_command(commands.get(1).copied(), &mut app_state),
-            Some(command) => exec::exec_external(command, &commands[1..]),
+            Some(command) => exec::exec_external(command, &commands[1..], &app_state),
             None => (),
         }
     }

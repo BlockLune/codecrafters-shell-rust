@@ -46,9 +46,12 @@ pub fn pwd_command(path: Option<&PathBuf>) {
 }
 
 pub fn cd_command(path: Option<&str>, app_state: &mut AppState) {
+    let home_path = PathBuf::from(env::var("HOME").unwrap());
+
     let path = match path {
+        Some("~") => home_path,
         Some(path) => PathBuf::from(path),
-        None => PathBuf::from(env::var("HOME").unwrap())
+        None => home_path,
     };
 
     let _ = app_state

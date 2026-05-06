@@ -4,6 +4,8 @@ use std::fs;
 use std::path::PathBuf;
 use std::process;
 
+use crate::state::AppState;
+
 pub fn build_executables() -> HashMap<String, PathBuf> {
     let mut executables = HashMap::new();
 
@@ -38,7 +40,7 @@ fn is_executable(path: &std::path::Path) -> bool {
         .unwrap_or(false)
 }
 
-pub fn exec_external(command: &str, args: &[&str]) {
+pub fn exec_external(command: &str, args: &[&str], app_state: &AppState) {
     let executables = build_executables();
 
     if !executables.contains_key(command) {
@@ -47,6 +49,7 @@ pub fn exec_external(command: &str, args: &[&str]) {
     }
 
     let output = process::Command::new(command)
+        .current_dir(app_state.get_cwd().unwrap())
         .args(args)
         .output()
         .expect("failed to execute process");
