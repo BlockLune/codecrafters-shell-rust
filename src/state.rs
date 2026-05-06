@@ -1,36 +1,37 @@
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub struct AppState {
-    cwd: Option<PathBuf>,
+    cwd: PathBuf,
 }
 
 impl AppState {
-    pub fn default() -> Self {
-        Self {
-            cwd: env::current_dir().ok(),
-        }
+    pub fn default() -> Result<Self, String> {
+        let cwd =
+            env::current_dir().map_err(|_| String::from("failed to get current directory"))?;
+        Ok(Self { cwd })
     }
 
-    pub fn get_cwd(&self) -> Option<&PathBuf> {
-        self.cwd.as_ref()
+    pub fn get_cwd(&self) -> &Path {
+        &self.cwd
     }
 
     pub fn cd(&mut self, path: PathBuf) -> Result<(), String> {
-        if path.starts_with("/") {
-            if !path.exists() {
-                return Err(String::from("No such file or directory"));
-            }
-            self.cwd = Some(path);
+        let target = if path.is_absolute() {
+            path
         } else {
-            if self.cwd.is_none() {
-                return Err(String::from("No such file or directory"));
-            }
-            let Ok(canonicalized) = self.cwd.as_ref().unwrap().join(path).canonicalize() else {
-                return Err(String::from("No such file or directory"));
-            };
-            self.cwd = Some(canonicalized);
+            self.cwd.join(path)
+        };
+
+        let canonicalized = target
+            .canonicalize()
+            .map_err(|_| String::from("No such file or directory"))?;
+
+        if !canonicalized.is_dir() {
+            return Err(String::from("Not a directory"));
         }
+
+        self.cwd = canonicalized;
 
         Ok(())
     }

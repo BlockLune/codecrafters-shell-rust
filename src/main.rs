@@ -1,4 +1,7 @@
-use std::io::{self, Write};
+use std::{
+    io::{self, Write},
+    process,
+};
 
 mod builtin;
 mod exec;
@@ -7,7 +10,10 @@ mod state;
 use state::AppState;
 
 fn main() {
-    let mut app_state = AppState::default();
+    let mut app_state = AppState::default().unwrap_or_else(|e| {
+        eprintln!("ERROR: {}", e);
+        process::exit(1);
+    });
 
     loop {
         print!("$ ");

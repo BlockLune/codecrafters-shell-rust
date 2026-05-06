@@ -49,7 +49,7 @@ pub fn exec_external(command: &str, args: &[&str], app_state: &AppState) {
     }
 
     let output = process::Command::new(command)
-        .current_dir(app_state.get_cwd().unwrap())
+        .current_dir(app_state.get_cwd())
         .args(args)
         .output()
         .expect("failed to execute process");

@@ -1,5 +1,5 @@
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process;
 
 use crate::exec::build_executables;
@@ -41,16 +41,21 @@ pub fn type_command(command: Option<&str>) {
     }
 }
 
-pub fn pwd_command(path: Option<&PathBuf>) {
-    println!("{}", path.unwrap().display());
+pub fn pwd_command(path: &Path) {
+    println!("{}", path.display());
 }
 
 pub fn cd_command(path: Option<&str>, app_state: &mut AppState) {
     let home_path = PathBuf::from(env::var("HOME").unwrap());
 
     let path = match path {
-        Some("~") => home_path,
-        Some(path) => PathBuf::from(path),
+        Some(path) => {
+            if path.trim() == "" || path.trim() == "~" {
+                home_path
+            } else {
+                PathBuf::from(path)
+            }
+        }
         None => home_path,
     };
 
