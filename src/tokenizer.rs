@@ -2,6 +2,7 @@
 enum TokenizerState {
     Normal,
     InSingleQuote,
+    InDoubleQuote,
 }
 
 pub fn tokenize(input: &str) -> Result<Vec<String>, String> {
@@ -11,12 +12,16 @@ pub fn tokenize(input: &str) -> Result<Vec<String>, String> {
 
     for ch in input.chars() {
         match ch {
-            '\'' => {
-                state = match state {
-                    TokenizerState::Normal => TokenizerState::InSingleQuote,
-                    TokenizerState::InSingleQuote => TokenizerState::Normal,
-                }
-            }
+            '\'' => match state {
+                TokenizerState::Normal => state = TokenizerState::InSingleQuote,
+                TokenizerState::InSingleQuote => state = TokenizerState::Normal,
+                TokenizerState::InDoubleQuote => token.push('\''),
+            },
+            '\"' => match state {
+                TokenizerState::Normal => state = TokenizerState::InDoubleQuote,
+                TokenizerState::InSingleQuote => token.push('\"'),
+                TokenizerState::InDoubleQuote => state = TokenizerState::Normal,
+            },
             ' ' => match state {
                 TokenizerState::Normal => {
                     if !token.is_empty() {
@@ -24,7 +29,7 @@ pub fn tokenize(input: &str) -> Result<Vec<String>, String> {
                         token.clear();
                     }
                 }
-                TokenizerState::InSingleQuote => token.push(' '),
+                TokenizerState::InSingleQuote | TokenizerState::InDoubleQuote => token.push(' '),
             },
             other_ch => {
                 token.push(other_ch);
@@ -75,5 +80,45 @@ mod tests {
             tokenize("echo hello''world").unwrap(),
             vec!["echo", "helloworld"]
         );
+    }
+
+    #[test]
+    fn test_tokenizer_multiple_whitespaces_in_double_quotes() {
+        assert_eq!(
+            tokenize("echo \"hello    world\"").unwrap(),
+            vec!["echo", "hello    world"]
+        )
+    }
+
+    #[test]
+    fn test_tokenizer_adjacent_double_quoted_strings() {
+        assert_eq!(
+            tokenize("echo \"hello\"\"world\"").unwrap(),
+            vec!["echo", "helloworld"]
+        )
+    }
+
+    #[test]
+    fn test_tokenizer_double_quoted_and_unquoted_strings_next_to_each_other() {
+        assert_eq!(
+            tokenize("echo \"hello\"world").unwrap(),
+            vec!["echo", "helloworld"]
+        )
+    }
+
+    #[test]
+    fn test_tokenizer_separate_arguments_in_double_quotes() {
+        assert_eq!(
+            tokenize("echo \"hello\" \"world\"").unwrap(),
+            vec!["echo", "hello", "world"]
+        )
+    }
+
+    #[test]
+    fn test_tokenizer_single_quotes_in_double_quotes() {
+        assert_eq!(
+            tokenize("echo \"shell\'s test\"").unwrap(),
+            vec!["echo", "shell\'s test"]
+        )
     }
 }
