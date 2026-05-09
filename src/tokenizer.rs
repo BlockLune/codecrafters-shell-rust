@@ -7,32 +7,44 @@ enum TokenizerState {
 
 pub fn tokenize(input: &str) -> Result<Vec<String>, String> {
     let mut tokens: Vec<String> = Vec::new();
-    let mut state = TokenizerState::Normal;
     let mut token: String = String::new();
+    let mut state = TokenizerState::Normal;
+    let mut is_escaping = false;
 
     for ch in input.chars() {
-        match ch {
-            '\'' => match state {
-                TokenizerState::Normal => state = TokenizerState::InSingleQuote,
-                TokenizerState::InSingleQuote => state = TokenizerState::Normal,
-                TokenizerState::InDoubleQuote => token.push('\''),
-            },
-            '\"' => match state {
-                TokenizerState::Normal => state = TokenizerState::InDoubleQuote,
-                TokenizerState::InSingleQuote => token.push('\"'),
-                TokenizerState::InDoubleQuote => state = TokenizerState::Normal,
-            },
-            ' ' => match state {
-                TokenizerState::Normal => {
-                    if !token.is_empty() {
-                        tokens.push(token.clone());
-                        token.clear();
+        if is_escaping {
+            token.push(ch);
+            is_escaping = false;
+        } else {
+            match ch {
+                '\'' => match state {
+                    TokenizerState::Normal => state = TokenizerState::InSingleQuote,
+                    TokenizerState::InSingleQuote => state = TokenizerState::Normal,
+                    TokenizerState::InDoubleQuote => token.push('\''),
+                },
+                '\"' => match state {
+                    TokenizerState::Normal => state = TokenizerState::InDoubleQuote,
+                    TokenizerState::InSingleQuote => token.push('\"'),
+                    TokenizerState::InDoubleQuote => state = TokenizerState::Normal,
+                },
+                '\\' => match state {
+                    TokenizerState::Normal | TokenizerState::InDoubleQuote => is_escaping = true,
+                    TokenizerState::InSingleQuote => token.push('\\'),
+                },
+                ' ' => match state {
+                    TokenizerState::Normal => {
+                        if !token.is_empty() {
+                            tokens.push(token.clone());
+                            token.clear();
+                        }
                     }
+                    TokenizerState::InSingleQuote | TokenizerState::InDoubleQuote => {
+                        token.push(' ')
+                    }
+                },
+                other_ch => {
+                    token.push(other_ch);
                 }
-                TokenizerState::InSingleQuote | TokenizerState::InDoubleQuote => token.push(' '),
-            },
-            other_ch => {
-                token.push(other_ch);
             }
         }
     }
@@ -120,5 +132,45 @@ mod tests {
             tokenize("echo \"shell\'s test\"").unwrap(),
             vec!["echo", "shell\'s test"]
         )
+    }
+
+    #[test]
+    fn test_tokenizer_multiple_escaped_spaces() {
+        assert_eq!(
+            tokenize(r#"echo three\ \ \ spaces"#).unwrap(),
+            vec!["echo", "three   spaces"]
+        );
+    }
+
+    #[test]
+    fn test_tokenizer_escaped_space_and_delimiters() {
+        assert_eq!(
+            tokenize(r#"echo before\      after"#).unwrap(),
+            vec!["echo", "before ", "after"]
+        );
+    }
+
+    #[test]
+    fn test_tokenizer_escaped_n_character() {
+        assert_eq!(
+            tokenize(r#"echo test\nexample"#).unwrap(),
+            vec!["echo", "testnexample"]
+        );
+    }
+
+    #[test]
+    fn test_tokenizer_escaped_backslash() {
+        assert_eq!(
+            tokenize(r#"echo hello\\world"#).unwrap(),
+            vec!["echo", r#"hello\world"#]
+        );
+    }
+
+    #[test]
+    fn test_tokenizer_escaped_single_quotes() {
+        assert_eq!(
+            tokenize(r#"echo \'hello\'"#).unwrap(),
+            vec!["echo", "'hello'"]
+        );
     }
 }

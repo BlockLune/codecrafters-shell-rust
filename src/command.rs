@@ -16,12 +16,8 @@ pub enum Command<'a> {
 impl<'a> Command<'a> {
     pub fn is_builtin(s: &'a str) -> bool {
         match Self::from_str(s) {
-            Self::BuiltinExit => true,
-            Self::BuiltinEcho => true,
-            Self::BuiltinType => true,
-            Self::BuiltinPwd => true,
-            Self::BuiltinCd => true,
-            _ => false,
+            Self::External(_) => false,
+            _ => true,
         }
     }
 
@@ -32,7 +28,7 @@ impl<'a> Command<'a> {
             "type" => Self::BuiltinType,
             "pwd" => Self::BuiltinPwd,
             "cd" => Self::BuiltinCd,
-            external_command => Self::External(external_command)
+            external_command => Self::External(external_command),
         }
     }
 
