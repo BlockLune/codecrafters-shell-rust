@@ -189,4 +189,20 @@ mod tests {
             vec!["echo", r#"example\"test"#]
         );
     }
+
+    #[test]
+    fn test_tokenizer_double_quotes_with_backslashes() {
+        assert_eq!(
+            tokenize(r#"echo "just'one'\\n'backslash""#).unwrap(),
+            vec!["echo", r#"just'one'\n'backslash"#]
+        );
+    }
+
+    #[test]
+    fn test_tokenizer_double_quotes_mixed_with_raw_text() {
+        assert_eq!(
+            tokenize(r#"echo "inside\"literal_quote."outside\""#).unwrap(),
+            vec!["echo", r#"inside"literal_quote.outside""#]
+        );
+    }
 }
