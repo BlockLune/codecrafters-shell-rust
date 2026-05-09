@@ -97,7 +97,7 @@ mod tests {
     #[test]
     fn test_tokenizer_multiple_whitespaces_in_double_quotes() {
         assert_eq!(
-            tokenize("echo \"hello    world\"").unwrap(),
+            tokenize(r#"echo "hello    world""#).unwrap(),
             vec!["echo", "hello    world"]
         )
     }
@@ -105,7 +105,7 @@ mod tests {
     #[test]
     fn test_tokenizer_adjacent_double_quoted_strings() {
         assert_eq!(
-            tokenize("echo \"hello\"\"world\"").unwrap(),
+            tokenize(r#"echo "hello""world""#).unwrap(),
             vec!["echo", "helloworld"]
         )
     }
@@ -113,7 +113,7 @@ mod tests {
     #[test]
     fn test_tokenizer_double_quoted_and_unquoted_strings_next_to_each_other() {
         assert_eq!(
-            tokenize("echo \"hello\"world").unwrap(),
+            tokenize(r#"echo "hello"world"#).unwrap(),
             vec!["echo", "helloworld"]
         )
     }
@@ -121,7 +121,7 @@ mod tests {
     #[test]
     fn test_tokenizer_separate_arguments_in_double_quotes() {
         assert_eq!(
-            tokenize("echo \"hello\" \"world\"").unwrap(),
+            tokenize(r#"echo "hello" "world""#).unwrap(),
             vec!["echo", "hello", "world"]
         )
     }
@@ -129,8 +129,8 @@ mod tests {
     #[test]
     fn test_tokenizer_single_quotes_in_double_quotes() {
         assert_eq!(
-            tokenize("echo \"shell\'s test\"").unwrap(),
-            vec!["echo", "shell\'s test"]
+            tokenize(r#"echo "shell's test""#).unwrap(),
+            vec!["echo", "shell's test"]
         )
     }
 
