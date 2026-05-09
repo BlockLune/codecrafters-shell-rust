@@ -173,4 +173,20 @@ mod tests {
             vec!["echo", "'hello'"]
         );
     }
+
+    #[test]
+    fn test_tokenizer_single_quotes_literal_backslashes() {
+        assert_eq!(
+            tokenize(r#"echo 'shell\\\nscript'"#).unwrap(),
+            vec!["echo", r#"shell\\\nscript"#]
+        );
+    }
+
+    #[test]
+    fn test_tokenizer_single_quotes_internal_double_quotes() {
+        assert_eq!(
+            tokenize(r#"echo 'example\"test'"#).unwrap(),
+            vec!["echo", r#"example\"test"#]
+        );
+    }
 }
