@@ -1,7 +1,5 @@
-use std::{
-    io::{self, Write},
-    process,
-};
+use rustyline::{DefaultEditor, error::ReadlineError};
+use std::process;
 
 mod command;
 mod parser;
@@ -18,33 +16,44 @@ fn main() {
         process::exit(1);
     });
 
+    let mut rl = DefaultEditor::new().unwrap_or_else(|e| {
+        eprintln!("ERROR: {}", e);
+        process::exit(1);
+    });
+
     loop {
-        if let Err(e) = one_turn(&mut app_state) {
+        if let Err(e) = one_turn(&mut app_state, &mut rl) {
             eprintln!("ERROR: {}", e);
         }
     }
 }
 
-fn one_turn(app_state: &mut AppState) -> Result<(), String> {
-    print!("$ ");
-    io::stdout().flush().unwrap();
+fn one_turn(app_state: &mut AppState, rl: &mut DefaultEditor) -> Result<(), String> {
+    match rl.readline("$ ") {
+        Ok(input) => {
+            let tokens = tokenizer::tokenize(&input)?;
+            if tokens.is_empty() {
+                return Ok(());
+            }
 
-    let mut input = String::new();
-    io::stdin().read_line(&mut input).unwrap();
-    input.pop(); // remove line break
+            let ParsedCommand {
+                command,
+                args,
+                stdout,
+                stderr,
+            } = parser::parse_command(&tokens)?;
 
-    let tokens = tokenizer::tokenize(&input)?;
-    if tokens.is_empty() {
-        return Ok(());
+            Command::from_str(command).exec(app_state, args, stdout, stderr);
+            Ok(())
+        }
+        Err(ReadlineError::Interrupted) => {
+            println!("^C");
+            Ok(())
+        }
+        Err(ReadlineError::Eof) => {
+            println!(r#"Use "exit" to leave the shell."#);
+            Ok(())
+        }
+        Err(e) => Err(format!("readline error: {}", e)),
     }
-
-    let ParsedCommand {
-        command,
-        args,
-        stdout,
-        stderr,
-    } = parser::parse_command(&tokens)?;
-
-    Command::from_str(command).exec(app_state, args, stdout, stderr);
-    Ok(())
 }
