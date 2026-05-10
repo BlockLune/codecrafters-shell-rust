@@ -15,36 +15,35 @@ pub fn tokenize(input: &str) -> Result<Vec<String>, String> {
         if is_escaping {
             token.push(ch);
             is_escaping = false;
-        } else {
-            match ch {
-                '\'' => match state {
-                    TokenizerState::Normal => state = TokenizerState::InSingleQuote,
-                    TokenizerState::InSingleQuote => state = TokenizerState::Normal,
-                    TokenizerState::InDoubleQuote => token.push('\''),
-                },
-                '\"' => match state {
-                    TokenizerState::Normal => state = TokenizerState::InDoubleQuote,
-                    TokenizerState::InSingleQuote => token.push('\"'),
-                    TokenizerState::InDoubleQuote => state = TokenizerState::Normal,
-                },
-                '\\' => match state {
-                    TokenizerState::Normal | TokenizerState::InDoubleQuote => is_escaping = true,
-                    TokenizerState::InSingleQuote => token.push('\\'),
-                },
-                ' ' => match state {
-                    TokenizerState::Normal => {
-                        if !token.is_empty() {
-                            tokens.push(token.clone());
-                            token.clear();
-                        }
+            continue;
+        }
+
+        match ch {
+            '\'' => match state {
+                TokenizerState::Normal => state = TokenizerState::InSingleQuote,
+                TokenizerState::InSingleQuote => state = TokenizerState::Normal,
+                TokenizerState::InDoubleQuote => token.push('\''),
+            },
+            '\"' => match state {
+                TokenizerState::Normal => state = TokenizerState::InDoubleQuote,
+                TokenizerState::InSingleQuote => token.push('\"'),
+                TokenizerState::InDoubleQuote => state = TokenizerState::Normal,
+            },
+            '\\' => match state {
+                TokenizerState::Normal | TokenizerState::InDoubleQuote => is_escaping = true,
+                TokenizerState::InSingleQuote => token.push('\\'),
+            },
+            ' ' => match state {
+                TokenizerState::Normal => {
+                    if !token.is_empty() {
+                        tokens.push(token.clone());
+                        token.clear();
                     }
-                    TokenizerState::InSingleQuote | TokenizerState::InDoubleQuote => {
-                        token.push(' ')
-                    }
-                },
-                other_ch => {
-                    token.push(other_ch);
                 }
+                TokenizerState::InSingleQuote | TokenizerState::InDoubleQuote => token.push(' '),
+            },
+            other_ch => {
+                token.push(other_ch);
             }
         }
     }

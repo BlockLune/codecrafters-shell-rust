@@ -1,4 +1,5 @@
 use std::env;
+use std::io::Write;
 use std::path::PathBuf;
 use std::process;
 
@@ -32,53 +33,87 @@ impl<'a> Command<'a> {
         }
     }
 
-    pub fn exec(&self, app_state: &mut AppState, args: Vec<&str>) {
+    pub fn exec(
+        &self,
+        app_state: &mut AppState,
+        args: Vec<&str>,
+        out_output: Box<dyn Write>,
+        err_output: Box<dyn Write>,
+    ) {
         match self {
-            Self::BuiltinExit => exit_command(app_state, args),
-            Self::BuiltinEcho => echo_command(app_state, args),
-            Self::BuiltinType => type_command(app_state, args),
-            Self::BuiltinPwd => pwd_command(app_state, args),
-            Self::BuiltinCd => cd_command(app_state, args),
-            Self::External(command) => exec_external(app_state, command, args),
-        }
-    }
-}
-
-fn exit_command(_app_state: &mut AppState, _args: Vec<&str>) {
-    process::exit(0);
-}
-
-fn echo_command(_app_state: &mut AppState, args: Vec<&str>) {
-    println!("{}", args.join(" "));
-}
-
-fn type_command(app_state: &mut AppState, args: Vec<&str>) {
-    for command in args {
-        if Command::is_builtin(command) {
-            println!("{} is a shell builtin", command);
-        } else {
-            let executables = app_state.get_external_executables();
-            if executables.contains_key(command) {
-                println!(
-                    "{} is {}",
-                    command,
-                    executables.get(command).unwrap().display()
-                )
-            } else {
-                println!("{}: not found", command);
+            Self::BuiltinExit => exit_command(app_state, args, out_output, err_output),
+            Self::BuiltinEcho => echo_command(app_state, args, out_output, err_output),
+            Self::BuiltinType => type_command(app_state, args, out_output, err_output),
+            Self::BuiltinPwd => pwd_command(app_state, args, out_output, err_output),
+            Self::BuiltinCd => cd_command(app_state, args, out_output, err_output),
+            Self::External(command) => {
+                exec_external(app_state, command, args, out_output, err_output)
             }
         }
     }
 }
 
-fn pwd_command(app_state: &mut AppState, _args: Vec<&str>) {
-    let path = app_state.get_cwd();
-    println!("{}", path.display());
+fn exit_command(
+    _app_state: &mut AppState,
+    _args: Vec<&str>,
+    mut _out_output: Box<dyn Write>,
+    mut _err_output: Box<dyn Write>,
+) {
+    process::exit(0);
 }
 
-fn cd_command(app_state: &mut AppState, args: Vec<&str>) {
+fn echo_command(
+    _app_state: &mut AppState,
+    args: Vec<&str>,
+    mut out_output: Box<dyn Write>,
+    mut _err_output: Box<dyn Write>,
+) {
+    let _ = writeln!(out_output, "{}", args.join(" "));
+}
+
+fn type_command(
+    app_state: &mut AppState,
+    args: Vec<&str>,
+    mut out_output: Box<dyn Write>,
+    mut _err_output: Box<dyn Write>,
+) {
+    for command in args {
+        if Command::is_builtin(command) {
+            let _ = writeln!(out_output, "{} is a shell builtin", command);
+        } else {
+            let executables = app_state.get_external_executables();
+            if executables.contains_key(command) {
+                let _ = writeln!(
+                    out_output,
+                    "{} is {}",
+                    command,
+                    executables.get(command).unwrap().display()
+                );
+            } else {
+                let _ = writeln!(out_output, "{}: not found", command);
+            }
+        }
+    }
+}
+
+fn pwd_command(
+    app_state: &mut AppState,
+    _args: Vec<&str>,
+    mut out_output: Box<dyn Write>,
+    mut _err_output: Box<dyn Write>,
+) {
+    let path = app_state.get_cwd();
+    let _ = writeln!(out_output, "{}", path.display());
+}
+
+fn cd_command(
+    app_state: &mut AppState,
+    args: Vec<&str>,
+    mut _out_output: Box<dyn Write>,
+    mut err_output: Box<dyn Write>,
+) {
     if args.len() > 1 {
-        eprintln!("cd: too many arguments");
+        let _ = writeln!(err_output, "cd: too many arguments");
         return;
     }
 
@@ -90,12 +125,18 @@ fn cd_command(app_state: &mut AppState, args: Vec<&str>) {
 
     let _ = app_state
         .cd(path.clone())
-        .map_err(|e| eprintln!("cd: {}: {}", path.display(), e));
+        .map_err(|e| writeln!(err_output, "cd: {}: {}", path.display(), e));
 }
 
-fn exec_external(app_state: &AppState, command: &str, args: Vec<&str>) {
+fn exec_external(
+    app_state: &AppState,
+    command: &str,
+    args: Vec<&str>,
+    mut out_output: Box<dyn Write>,
+    mut err_output: Box<dyn Write>,
+) {
     if !app_state.get_external_executables().contains_key(command) {
-        println!("{}: command not found", command);
+        let _ = writeln!(out_output, "{}: command not found", command);
         return;
     }
 
@@ -107,11 +148,11 @@ fn exec_external(app_state: &AppState, command: &str, args: Vec<&str>) {
 
     if output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
-        print!("{}", stdout);
+        let _ = write!(out_output, "{}", stdout);
     }
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     if !stderr.is_empty() {
-        eprint!("{}", stderr);
+        let _ = write!(err_output, "{}", stderr);
     }
 }
