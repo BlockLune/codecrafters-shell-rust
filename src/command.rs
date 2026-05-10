@@ -146,8 +146,8 @@ fn exec_external(
         .output()
         .expect("failed to execute process");
 
-    if output.status.success() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    if !stdout.is_empty() {
         let _ = write!(out_output, "{}", stdout);
     }
 
