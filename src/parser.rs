@@ -17,16 +17,48 @@ pub fn parse_command(tokens: &[String]) -> Result<ParsedCommand<'_>, String> {
     let mut i = 0;
     while i < args.len() {
         let token = args[i];
-        if token == ">" || token == "1>" || token == "2>" {
+        if token == ">"
+            || token == "1>"
+            || token == "2>"
+            || token == ">>"
+            || token == "1>>"
+            || token == "2>>"
+        {
             if i + 1 >= args.len() {
                 return Err(String::from("no redirection target"));
             }
             let filepath = args[i + 1];
-            let file = File::create(filepath)
-                .map_err(|_| format!("failed to create file: {}", filepath))?;
             match token {
-                ">" | "1>" => stdout = Box::new(file),
-                "2>" => stderr = Box::new(file),
+                ">" | "1>" => {
+                    stdout = Box::new(
+                        File::create(filepath)
+                            .map_err(|_| format!("failed to create file: {}", filepath))?,
+                    )
+                }
+                "2>" => {
+                    stderr = Box::new(
+                        File::create(filepath)
+                            .map_err(|_| format!("failed to create file: {}", filepath))?,
+                    )
+                }
+                ">>" | "1>>" => {
+                    stdout = Box::new(
+                        File::options()
+                            .append(true)
+                            .create(true)
+                            .open(filepath)
+                            .map_err(|_| format!("failed to create file: {}", filepath))?,
+                    )
+                }
+                "2>>" => {
+                    stderr = Box::new(
+                        File::options()
+                            .append(true)
+                            .create(true)
+                            .open(filepath)
+                            .map_err(|_| format!("failed to create file: {}", filepath))?,
+                    )
+                }
                 _ => unreachable!(),
             }
 
