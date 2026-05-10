@@ -19,38 +19,32 @@ fn main() {
     });
 
     loop {
-        print!("$ ");
-        io::stdout().flush().unwrap();
-
-        let mut input = String::new();
-        io::stdin().read_line(&mut input).unwrap();
-        input.pop(); // remove line break
-
-        let tokens = match tokenizer::tokenize(&input) {
-            Ok(tks) => tks,
-            Err(e) => {
-                eprintln!("ERROR: {}", e);
-                continue;
-            }
-        };
-
-        if tokens.is_empty() {
-            continue;
+        if let Err(e) = one_turn(&mut app_state) {
+            eprintln!("ERROR: {}", e);
         }
-
-        let ParsedCommand {
-            command,
-            args,
-            stdout,
-            stderr,
-        } = match parser::parse_command(&tokens) {
-            Ok(parsed_command) => parsed_command,
-            Err(e) => {
-                eprintln!("ERROR: {}", e);
-                continue;
-            }
-        };
-
-        Command::from_str(command).exec(&mut app_state, args, stdout, stderr);
     }
+}
+
+fn one_turn(app_state: &mut AppState) -> Result<(), String> {
+    print!("$ ");
+    io::stdout().flush().unwrap();
+
+    let mut input = String::new();
+    io::stdin().read_line(&mut input).unwrap();
+    input.pop(); // remove line break
+
+    let tokens = tokenizer::tokenize(&input)?;
+    if tokens.is_empty() {
+        return Ok(());
+    }
+
+    let ParsedCommand {
+        command,
+        args,
+        stdout,
+        stderr,
+    } = parser::parse_command(&tokens)?;
+
+    Command::from_str(command).exec(app_state, args, stdout, stderr);
+    Ok(())
 }
