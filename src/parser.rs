@@ -29,36 +29,10 @@ pub fn parse_command(tokens: &[String]) -> Result<ParsedCommand<'_>, String> {
             }
             let filepath = args[i + 1];
             match token {
-                ">" | "1>" => {
-                    stdout = Box::new(
-                        File::create(filepath)
-                            .map_err(|_| format!("failed to create file: {}", filepath))?,
-                    )
-                }
-                "2>" => {
-                    stderr = Box::new(
-                        File::create(filepath)
-                            .map_err(|_| format!("failed to create file: {}", filepath))?,
-                    )
-                }
-                ">>" | "1>>" => {
-                    stdout = Box::new(
-                        File::options()
-                            .append(true)
-                            .create(true)
-                            .open(filepath)
-                            .map_err(|_| format!("failed to create file: {}", filepath))?,
-                    )
-                }
-                "2>>" => {
-                    stderr = Box::new(
-                        File::options()
-                            .append(true)
-                            .create(true)
-                            .open(filepath)
-                            .map_err(|_| format!("failed to create file: {}", filepath))?,
-                    )
-                }
+                ">" | "1>" => stdout = Box::new(create_fd(filepath, false)?),
+                "2>" => stderr = Box::new(create_fd(filepath, false)?),
+                ">>" | "1>>" => stdout = Box::new(create_fd(filepath, true)?),
+                "2>>" => stderr = Box::new(create_fd(filepath, true)?),
                 _ => unreachable!(),
             }
 
@@ -74,4 +48,14 @@ pub fn parse_command(tokens: &[String]) -> Result<ParsedCommand<'_>, String> {
         stdout,
         stderr,
     })
+}
+
+fn create_fd(filepath: &str, appending: bool) -> Result<File, String> {
+    let file = if appending {
+        File::options().append(true).create(true).open(filepath)
+    } else {
+        File::create(filepath)
+    };
+
+    file.map_err(|_| format!("failed to create file: {}", filepath))
 }
