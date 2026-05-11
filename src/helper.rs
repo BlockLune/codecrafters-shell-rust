@@ -17,6 +17,7 @@ impl ShellHelper {
             .map(String::from)
             .collect();
         commands.extend(app_state.get_external_executables().keys().cloned());
+        commands.sort();
         ShellHelper { commands }
     }
 }
