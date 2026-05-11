@@ -4,21 +4,38 @@ use rustyline::highlight::Highlighter;
 use rustyline::hint::Hinter;
 use rustyline::validate::Validator;
 
+use std::fs;
+
 use crate::state::AppState;
 
 pub struct ShellHelper {
-    commands: Vec<String>,
+    candidates: Vec<String>,
 }
 
 impl ShellHelper {
     pub fn new(app_state: &AppState) -> Self {
-        let mut commands: Vec<String> = vec!["exit", "echo", "type", "pwd", "cd"]
+        // builtin commands
+        let mut candidates: Vec<String> = vec!["exit", "echo", "type", "pwd", "cd"]
             .into_iter()
             .map(String::from)
             .collect();
-        commands.extend(app_state.get_external_executables().keys().cloned());
-        commands.sort();
-        ShellHelper { commands }
+
+        // external commands
+        candidates.extend(app_state.get_external_executables().keys().cloned());
+
+        // direct path
+        let file_entries: Vec<_> = fs::read_dir(app_state.get_cwd())
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .collect();
+        candidates.extend(
+            file_entries
+                .iter()
+                .map(|dir_entry| dir_entry.file_name().to_string_lossy().to_string()),
+        );
+
+        candidates.sort();
+        ShellHelper { candidates }
     }
 }
 
@@ -35,7 +52,7 @@ impl Completer for ShellHelper {
         let prefix = &line[word_start..pos];
 
         let matches = self
-            .commands
+            .candidates
             .iter()
             .filter(|command| command.starts_with(prefix))
             .map(|command| Pair {
