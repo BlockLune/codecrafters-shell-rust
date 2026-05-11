@@ -1,7 +1,6 @@
 use rustyline::config::Config;
 use rustyline::history::DefaultHistory;
 use rustyline::{Editor, error::ReadlineError};
-use std::process;
 
 mod command;
 mod helper;
@@ -14,25 +13,19 @@ use helper::ShellHelper;
 use parser::ParsedCommand;
 use state::AppState;
 
-fn main() {
-    let mut app_state = AppState::default().unwrap_or_else(|e| {
-        eprintln!("ERROR: {}", e);
-        process::exit(1);
-    });
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut app_state = AppState::default()?;
     let shell_helper = ShellHelper::new(&app_state);
     let config = Config::builder()
         .completion_type(rustyline::CompletionType::List)
         .build();
-    let mut rl = Editor::with_config(config).unwrap_or_else(|e| {
-        eprintln!("ERROR: {}", e);
-        process::exit(1);
-    });
+    let mut rl = Editor::with_config(config)?;
     rl.set_helper(Some(shell_helper));
 
     // REPL (Read-Eval-Print Loop)
     loop {
         if let Err(e) = one_turn(&mut app_state, &mut rl) {
-            eprintln!("ERROR: {}", e);
+            eprintln!("Error: {}", e);
         }
     }
 }
