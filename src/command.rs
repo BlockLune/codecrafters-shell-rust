@@ -55,11 +55,22 @@ impl<'a> Command<'a> {
 
 fn exit_command(
     _app_state: &mut AppState,
-    _args: Vec<&str>,
-    mut _out_output: Box<dyn Write>,
-    mut _err_output: Box<dyn Write>,
+    args: Vec<&str>,
+    mut out_output: Box<dyn Write>,
+    mut err_output: Box<dyn Write>,
 ) {
-    process::exit(0);
+    let _ = writeln!(out_output, "exit");
+
+    if args.is_empty() {
+        process::exit(0);
+    } else if args.len() >= 2 {
+        let _ = writeln!(err_output, "exit: too many arguments");
+    } else {
+        let _ = match args[0].parse::<i32>() {
+            Ok(ret) => process::exit(ret),
+            Err(_) => writeln!(err_output, "exit: {}: numeric argument required", args[0]),
+        };
+    }
 }
 
 fn echo_command(
