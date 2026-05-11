@@ -18,7 +18,7 @@ fn main() {
         eprintln!("ERROR: {}", e);
         process::exit(1);
     });
-    let shell_helper = ShellHelper::new();
+    let shell_helper = ShellHelper::new(&app_state);
     let mut rl = Editor::new().unwrap_or_else(|e| {
         eprintln!("ERROR: {}", e);
         process::exit(1);

@@ -1,18 +1,23 @@
 use rustyline::Helper;
 use rustyline::completion::{Completer, Pair};
+use rustyline::highlight::Highlighter;
 use rustyline::hint::Hinter;
 use rustyline::validate::Validator;
-use rustyline::highlight::Highlighter;
+
+use crate::state::AppState;
 
 pub struct ShellHelper {
-    commands: Vec<&'static str>,
+    commands: Vec<String>,
 }
 
 impl ShellHelper {
-    pub fn new() -> Self {
-        ShellHelper {
-            commands: vec!["echo ", "exit "],
-        }
+    pub fn new(app_state: &AppState) -> Self {
+        let mut commands: Vec<String> = vec!["exit", "echo", "type", "pwd", "cd"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+        commands.extend(app_state.get_external_executables().keys().cloned());
+        ShellHelper { commands }
     }
 }
 
@@ -34,7 +39,7 @@ impl Completer for ShellHelper {
             .filter(|command| command.starts_with(prefix))
             .map(|command| Pair {
                 display: command.to_string(),
-                replacement: command.to_string(),
+                replacement: format!("{} ", command),
             })
             .collect();
 
