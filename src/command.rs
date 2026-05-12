@@ -41,18 +41,18 @@ impl<'a> Command<'a> {
         &self,
         app_state: &mut AppState,
         args: Vec<&str>,
-        out_output: Box<dyn Write>,
-        err_output: Box<dyn Write>,
+        stdout: Box<dyn Write>,
+        stderr: Box<dyn Write>,
     ) {
         match self {
-            Self::BuiltinExit => exit_command(app_state, args, out_output, err_output),
-            Self::BuiltinEcho => echo_command(app_state, args, out_output, err_output),
-            Self::BuiltinType => type_command(app_state, args, out_output, err_output),
-            Self::BuiltinPwd => pwd_command(app_state, args, out_output, err_output),
-            Self::BuiltinCd => cd_command(app_state, args, out_output, err_output),
-            Self::BuiltinComplete => complete_command(app_state, args, out_output, err_output),
+            Self::BuiltinExit => exit_command(app_state, args, stdout, stderr),
+            Self::BuiltinEcho => echo_command(app_state, args, stdout, stderr),
+            Self::BuiltinType => type_command(app_state, args, stdout, stderr),
+            Self::BuiltinPwd => pwd_command(app_state, args, stdout, stderr),
+            Self::BuiltinCd => cd_command(app_state, args, stdout, stderr),
+            Self::BuiltinComplete => complete_command(app_state, args, stdout, stderr),
             Self::External(command) => {
-                exec_external(app_state, command, args, out_output, err_output)
+                exec_external(app_state, command, args, stdout, stderr)
             }
         }
     }
@@ -61,19 +61,19 @@ impl<'a> Command<'a> {
 fn exit_command(
     _app_state: &mut AppState,
     args: Vec<&str>,
-    mut out_output: Box<dyn Write>,
-    mut err_output: Box<dyn Write>,
+    mut stdout: Box<dyn Write>,
+    mut stderr: Box<dyn Write>,
 ) {
-    let _ = writeln!(out_output, "exit");
+    let _ = writeln!(stdout, "exit");
 
     if args.is_empty() {
         process::exit(0);
     } else if args.len() >= 2 {
-        let _ = writeln!(err_output, "exit: too many arguments");
+        let _ = writeln!(stderr, "exit: too many arguments");
     } else {
         let _ = match args[0].parse::<i32>() {
             Ok(ret) => process::exit(ret),
-            Err(_) => writeln!(err_output, "exit: {}: numeric argument required", args[0]),
+            Err(_) => writeln!(stderr, "exit: {}: numeric argument required", args[0]),
         };
     }
 }
@@ -81,32 +81,32 @@ fn exit_command(
 fn echo_command(
     _app_state: &mut AppState,
     args: Vec<&str>,
-    mut out_output: Box<dyn Write>,
-    mut _err_output: Box<dyn Write>,
+    mut stdout: Box<dyn Write>,
+    mut _stderr: Box<dyn Write>,
 ) {
-    let _ = writeln!(out_output, "{}", args.join(" "));
+    let _ = writeln!(stdout, "{}", args.join(" "));
 }
 
 fn type_command(
     app_state: &mut AppState,
     args: Vec<&str>,
-    mut out_output: Box<dyn Write>,
-    mut _err_output: Box<dyn Write>,
+    mut stdout: Box<dyn Write>,
+    mut _stderr: Box<dyn Write>,
 ) {
     for command in args {
         if Command::is_builtin(command) {
-            let _ = writeln!(out_output, "{} is a shell builtin", command);
+            let _ = writeln!(stdout, "{} is a shell builtin", command);
         } else {
             let executables = app_state.get_external_executables();
             if executables.contains_key(command) {
                 let _ = writeln!(
-                    out_output,
+                    stdout,
                     "{} is {}",
                     command,
                     executables.get(command).unwrap().display()
                 );
             } else {
-                let _ = writeln!(out_output, "{}: not found", command);
+                let _ = writeln!(stdout, "{}: not found", command);
             }
         }
     }
@@ -115,21 +115,21 @@ fn type_command(
 fn pwd_command(
     app_state: &mut AppState,
     _args: Vec<&str>,
-    mut out_output: Box<dyn Write>,
-    mut _err_output: Box<dyn Write>,
+    mut stdout: Box<dyn Write>,
+    mut _stderr: Box<dyn Write>,
 ) {
     let path = app_state.get_cwd();
-    let _ = writeln!(out_output, "{}", path.display());
+    let _ = writeln!(stdout, "{}", path.display());
 }
 
 fn cd_command(
     app_state: &mut AppState,
     args: Vec<&str>,
-    mut _out_output: Box<dyn Write>,
-    mut err_output: Box<dyn Write>,
+    mut _stdout: Box<dyn Write>,
+    mut stderr: Box<dyn Write>,
 ) {
     if args.len() > 1 {
-        let _ = writeln!(err_output, "cd: too many arguments");
+        let _ = writeln!(stderr, "cd: too many arguments");
         return;
     }
 
@@ -141,19 +141,19 @@ fn cd_command(
 
     let _ = app_state
         .cd(path.clone())
-        .map_err(|e| writeln!(err_output, "cd: {}: {}", path.display(), e));
+        .map_err(|e| writeln!(stderr, "cd: {}: {}", path.display(), e));
 }
 
 fn complete_command(
     _app_state: &mut AppState,
     args: Vec<&str>,
-    mut _out_output: Box<dyn Write>,
-    mut err_output: Box<dyn Write>,
+    mut _stdout: Box<dyn Write>,
+    mut stderr: Box<dyn Write>,
 ) {
     if let Some((idx, _)) = args.iter().enumerate().find(|&(_, &arg)| arg == "-p") {
         if idx + 1 < args.len() {
             let program = args[idx + 1];
-            let _ = writeln!(err_output, "complete: {}: no completion specification", program);
+            let _ = writeln!(stderr, "complete: {}: no completion specification", program);
         }
     }
 }
@@ -162,11 +162,11 @@ fn exec_external(
     app_state: &AppState,
     command: &str,
     args: Vec<&str>,
-    mut out_output: Box<dyn Write>,
-    mut err_output: Box<dyn Write>,
+    mut stdout: Box<dyn Write>,
+    mut stderr: Box<dyn Write>,
 ) {
     if !app_state.get_external_executables().contains_key(command) {
-        let _ = writeln!(out_output, "{}: command not found", command);
+        let _ = writeln!(stdout, "{}: command not found", command);
         return;
     }
 
@@ -176,13 +176,13 @@ fn exec_external(
         .output()
         .expect("failed to execute process");
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    if !stdout.is_empty() {
-        let _ = write!(out_output, "{}", stdout);
+    let stdout_str = String::from_utf8_lossy(&output.stdout);
+    if !stdout_str.is_empty() {
+        let _ = write!(stdout, "{}", stdout_str);
     }
 
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    if !stderr.is_empty() {
-        let _ = write!(err_output, "{}", stderr);
+    let stderr_str = String::from_utf8_lossy(&output.stderr);
+    if !stderr_str.is_empty() {
+        let _ = write!(stderr, "{}", stderr_str);
     }
 }
