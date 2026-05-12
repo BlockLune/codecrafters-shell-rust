@@ -51,7 +51,7 @@ impl Completer for ShellHelper {
         let word_start = line[..pos].rfind(' ').map_or(0, |i| i + 1);
         let prefix = &line[word_start..pos];
 
-        let matches = self
+        let mut matches: Vec<_> = self
             .candidates
             .iter()
             .filter(|command| command.starts_with(prefix))
@@ -60,6 +60,24 @@ impl Completer for ShellHelper {
                 replacement: format!("{} ", command),
             })
             .collect();
+
+        // path
+        if prefix.contains('/') {
+            let directory_path_end = prefix.rfind('/').unwrap();
+            let directory_path = &prefix[..=directory_path_end];
+            let file_prefix = &prefix[directory_path_end + 1..];
+            matches.extend(
+                fs::read_dir(directory_path)
+                    .unwrap()
+                    .filter_map(|entry| entry.ok())
+                    .map(|dir_entry| dir_entry.file_name().to_string_lossy().to_string())
+                    .filter(|entry| entry.starts_with(file_prefix))
+                    .map(|entry| Pair {
+                        display: format!("{}{}", directory_path, entry),
+                        replacement: format!("{}{} ", directory_path, entry),
+                    }),
+            );
+        }
 
         Ok((word_start, matches))
     }
