@@ -9,22 +9,22 @@ use std::fs;
 use crate::state::AppState;
 
 pub struct ShellHelper {
-    candidates: Vec<String>,
+    commands: Vec<String>,
 }
 
 impl ShellHelper {
     pub fn new(app_state: &AppState) -> Self {
         // builtin commands
-        let mut candidates: Vec<String> = vec!["exit", "echo", "type", "pwd", "cd"]
+        let mut commands: Vec<String> = vec!["exit", "echo", "type", "pwd", "cd"]
             .into_iter()
             .map(String::from)
             .collect();
 
         // external commands
-        candidates.extend(app_state.get_external_executables().keys().cloned());
+        commands.extend(app_state.get_external_executables().keys().cloned());
 
-        candidates.sort();
-        ShellHelper { candidates }
+        commands.sort();
+        ShellHelper { commands }
     }
 }
 
@@ -41,14 +41,29 @@ impl Completer for ShellHelper {
         let prefix = &line[word_start..pos];
         let matches = if word_start == 0 {
             // command
-            self.candidates
+            let cmd_matches: Vec<_> = self
+                .commands
                 .iter()
                 .filter(|command| command.starts_with(prefix))
-                .map(|command| Pair {
-                    display: command.to_string(),
-                    replacement: format!("{} ", command),
-                })
-                .collect()
+                .collect();
+
+            if cmd_matches.len() == 1 {
+                cmd_matches
+                    .iter()
+                    .map(|command| Pair {
+                        display: command.to_string(),
+                        replacement: format!("{} ", command),
+                    })
+                    .collect()
+            } else {
+                cmd_matches
+                    .iter()
+                    .map(|command| Pair {
+                        display: command.to_string(),
+                        replacement: command.to_string(),
+                    })
+                    .collect()
+            }
         } else if word_start > 0 {
             // path
             let mut directory_path = "./";
@@ -59,7 +74,13 @@ impl Completer for ShellHelper {
                 file_prefix = &prefix[directory_path_end + 1..];
             }
 
-            fs::read_dir(directory_path)
+            let dir_name = if directory_path == "./" {
+                ""
+            } else {
+                directory_path
+            };
+
+            let dir_entries: Vec<_> = fs::read_dir(directory_path)
                 .unwrap()
                 .filter_map(|entry| entry.ok())
                 .filter(|dir_entry| {
@@ -69,25 +90,44 @@ impl Completer for ShellHelper {
                         .to_string()
                         .starts_with(file_prefix)
                 })
-                .map(|entry| {
-                    let is_dir = entry.file_type().unwrap().is_dir();
-                    let dir_name = if directory_path == "./" {
-                        ""
-                    } else {
-                        directory_path
-                    };
-                    let file_name = format!(
-                        "{}{}",
-                        entry.file_name().to_string_lossy().to_string(),
-                        if is_dir { "/" } else { "" }
-                    );
-                    let suffix = if is_dir { "" } else { " " };
-                    Pair {
-                        display: format!("{}{}", dir_name, file_name),
-                        replacement: format!("{}{}{}", dir_name, file_name, suffix),
-                    }
-                })
-                .collect()
+                .collect();
+
+            if dir_entries.len() == 1 {
+                dir_entries
+                    .iter()
+                    .map(|entry| {
+                        let is_dir = entry.file_type().unwrap().is_dir();
+                        let name = entry.file_name().to_string_lossy().to_string();
+                        let suffix = if is_dir { "/" } else { " " };
+                        Pair {
+                            display: format!(
+                                "{}{}{}",
+                                dir_name,
+                                name,
+                                if is_dir { "/" } else { "" }
+                            ),
+                            replacement: format!("{}{}{}", dir_name, name, suffix),
+                        }
+                    })
+                    .collect()
+            } else {
+                dir_entries
+                    .iter()
+                    .map(|entry| {
+                        let is_dir = entry.file_type().unwrap().is_dir();
+                        let name = entry.file_name().to_string_lossy().to_string();
+                        Pair {
+                            display: format!(
+                                "{}{}{}",
+                                dir_name,
+                                name,
+                                if is_dir { "/" } else { "" }
+                            ),
+                            replacement: format!("{}{}", dir_name, name),
+                        }
+                    })
+                    .collect()
+            }
         } else {
             unreachable!()
         };
