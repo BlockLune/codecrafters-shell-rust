@@ -7,6 +7,7 @@ use rustyline::validate::Validator;
 use std::fs;
 
 use crate::state::AppState;
+use crate::command;
 
 pub struct ShellHelper {
     commands: Vec<String>,
@@ -15,9 +16,9 @@ pub struct ShellHelper {
 impl ShellHelper {
     pub fn new(app_state: &AppState) -> Self {
         // builtin commands
-        let mut commands: Vec<String> = vec!["exit", "echo", "type", "pwd", "cd"]
-            .into_iter()
-            .map(String::from)
+        let mut commands: Vec<String> = command::BUILTIN_COMMANDS
+            .iter()
+            .map(|v| v.to_string())
             .collect();
 
         // external commands

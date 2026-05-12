@@ -5,12 +5,15 @@ use std::process;
 
 use crate::state::AppState;
 
+pub const BUILTIN_COMMANDS: &[&str] = &["exit", "echo", "type", "pwd", "cd", "complete"];
+
 pub enum Command<'a> {
     BuiltinExit,
     BuiltinEcho,
     BuiltinType,
     BuiltinPwd,
     BuiltinCd,
+    BuiltinComplete,
     External(&'a str),
 }
 
@@ -29,6 +32,7 @@ impl<'a> Command<'a> {
             "type" => Self::BuiltinType,
             "pwd" => Self::BuiltinPwd,
             "cd" => Self::BuiltinCd,
+            "complete" => Self::BuiltinComplete,
             external_command => Self::External(external_command),
         }
     }
@@ -46,6 +50,7 @@ impl<'a> Command<'a> {
             Self::BuiltinType => type_command(app_state, args, out_output, err_output),
             Self::BuiltinPwd => pwd_command(app_state, args, out_output, err_output),
             Self::BuiltinCd => cd_command(app_state, args, out_output, err_output),
+            Self::BuiltinComplete => complete_command(app_state, args, out_output, err_output),
             Self::External(command) => {
                 exec_external(app_state, command, args, out_output, err_output)
             }
@@ -137,6 +142,15 @@ fn cd_command(
     let _ = app_state
         .cd(path.clone())
         .map_err(|e| writeln!(err_output, "cd: {}: {}", path.display(), e));
+}
+
+fn complete_command(
+    _app_state: &mut AppState,
+    _args: Vec<&str>,
+    mut _out_output: Box<dyn Write>,
+    mut _err_output: Box<dyn Write>,
+) {
+    todo!();
 }
 
 fn exec_external(
