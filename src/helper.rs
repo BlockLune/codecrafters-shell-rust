@@ -23,17 +23,6 @@ impl ShellHelper {
         // external commands
         candidates.extend(app_state.get_external_executables().keys().cloned());
 
-        // direct path
-        let file_entries: Vec<_> = fs::read_dir(app_state.get_cwd())
-            .unwrap()
-            .filter_map(|entry| entry.ok())
-            .collect();
-        candidates.extend(
-            file_entries
-                .iter()
-                .map(|dir_entry| dir_entry.file_name().to_string_lossy().to_string()),
-        );
-
         candidates.sort();
         ShellHelper { candidates }
     }
@@ -62,22 +51,31 @@ impl Completer for ShellHelper {
             .collect();
 
         // path
+        let mut directory_path = "./";
+        let mut file_prefix = prefix;
         if prefix.contains('/') {
             let directory_path_end = prefix.rfind('/').unwrap();
-            let directory_path = &prefix[..=directory_path_end];
-            let file_prefix = &prefix[directory_path_end + 1..];
-            matches.extend(
-                fs::read_dir(directory_path)
-                    .unwrap()
-                    .filter_map(|entry| entry.ok())
-                    .map(|dir_entry| dir_entry.file_name().to_string_lossy().to_string())
-                    .filter(|entry| entry.starts_with(file_prefix))
-                    .map(|entry| Pair {
-                        display: format!("{}{}", directory_path, entry),
-                        replacement: format!("{}{} ", directory_path, entry),
-                    }),
-            );
+            directory_path = &prefix[..=directory_path_end];
+            file_prefix = &prefix[directory_path_end + 1..];
         }
+        matches.extend(
+            fs::read_dir(directory_path)
+                .unwrap()
+                .filter_map(|entry| entry.ok())
+                .map(|dir_entry| dir_entry.file_name().to_string_lossy().to_string())
+                .filter(|entry| entry.starts_with(file_prefix))
+                .map(|entry| {
+                    let display = if directory_path == "./" {
+                        format!("{}", entry)
+                    } else {
+                        format!("{}{}", directory_path, entry)
+                    };
+                    Pair {
+                        display: display.to_string(),
+                        replacement: format!("{} ", display),
+                    }
+                }),
+        );
 
         Ok((word_start, matches))
     }
