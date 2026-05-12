@@ -48,24 +48,19 @@ impl Completer for ShellHelper {
                 .filter(|command| command.starts_with(prefix))
                 .collect();
 
-            if cmd_matches.len() == 1 {
-                cmd_matches
-                    .iter()
-                    .map(|command| Pair {
-                        display: command.to_string(),
-                        replacement: format!("{} ", command),
-                    })
-                    .collect()
-            } else {
-                cmd_matches
-                    .iter()
-                    .map(|command| Pair {
-                        display: command.to_string(),
-                        replacement: command.to_string(),
-                    })
-                    .collect()
-            }
-        } else if word_start > 0 {
+            let single = cmd_matches.len() == 1;
+            cmd_matches
+                .iter()
+                .map(|command| Pair {
+                    display: command.to_string(),
+                    replacement: if single {
+                        format!("{} ", command)
+                    } else {
+                        command.to_string()
+                    },
+                })
+                .collect()
+        } else {
             // path
             let mut directory_path = "./";
             let mut file_prefix = prefix;
@@ -81,7 +76,7 @@ impl Completer for ShellHelper {
                 directory_path
             };
 
-            let dir_entries: Vec<_> = fs::read_dir(directory_path)
+            let mut dir_entries: Vec<_> = fs::read_dir(directory_path)
                 .unwrap()
                 .filter_map(|entry| entry.ok())
                 .filter(|dir_entry| {
@@ -93,44 +88,34 @@ impl Completer for ShellHelper {
                 })
                 .collect();
 
-            if dir_entries.len() == 1 {
-                dir_entries
-                    .iter()
-                    .map(|entry| {
-                        let is_dir = entry.file_type().unwrap().is_dir();
-                        let name = entry.file_name().to_string_lossy().to_string();
-                        let suffix = if is_dir { "/" } else { " " };
-                        Pair {
-                            display: format!(
-                                "{}{}{}",
-                                dir_name,
-                                name,
-                                if is_dir { "/" } else { "" }
-                            ),
-                            replacement: format!("{}{}{}", dir_name, name, suffix),
-                        }
-                    })
-                    .collect()
-            } else {
-                dir_entries
-                    .iter()
-                    .map(|entry| {
-                        let is_dir = entry.file_type().unwrap().is_dir();
-                        let name = entry.file_name().to_string_lossy().to_string();
-                        Pair {
-                            display: format!(
-                                "{}{}{}",
-                                dir_name,
-                                name,
-                                if is_dir { "/" } else { "" }
-                            ),
-                            replacement: format!("{}{}", dir_name, name),
-                        }
-                    })
-                    .collect()
-            }
-        } else {
-            unreachable!()
+            dir_entries.sort_by(|a, b| {
+                a.file_name()
+                    .to_string_lossy()
+                    .to_string()
+                    .cmp(&b.file_name().to_string_lossy().to_string())
+            });
+
+            let single = dir_entries.len() == 1;
+            dir_entries
+                .iter()
+                .map(|entry| {
+                    let is_dir = entry.file_type().unwrap().is_dir();
+                    let name = entry.file_name().to_string_lossy().to_string();
+                    Pair {
+                        display: format!("{}{}{}", dir_name, name, if is_dir { "/" } else { "" }),
+                        replacement: format!(
+                            "{}{}{}",
+                            dir_name,
+                            name,
+                            if single {
+                                if is_dir { "/" } else { " " }
+                            } else {
+                                ""
+                            }
+                        ),
+                    }
+                })
+                .collect()
         };
 
         Ok((word_start, matches))
