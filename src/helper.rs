@@ -70,24 +70,21 @@ impl Completer for ShellHelper {
                         .starts_with(file_prefix)
                 })
                 .map(|entry| {
-                    let filename = format!(
+                    let is_dir = entry.file_type().unwrap().is_dir();
+                    let dir_name = if directory_path == "./" {
+                        ""
+                    } else {
+                        directory_path
+                    };
+                    let file_name = format!(
                         "{}{}",
                         entry.file_name().to_string_lossy().to_string(),
-                        if entry.file_type().unwrap().is_dir() {
-                            "/"
-                        } else {
-                            ""
-                        }
+                        if is_dir { "/" } else { "" }
                     );
-
-                    let display = if directory_path == "./" {
-                        format!("{}", filename)
-                    } else {
-                        format!("{}{}", directory_path, filename)
-                    };
+                    let suffix = if is_dir { "" } else { " " };
                     Pair {
-                        display: display.to_string(),
-                        replacement: format!("{} ", display),
+                        display: format!("{}{}", dir_name, file_name),
+                        replacement: format!("{}{}{}", dir_name, file_name, suffix),
                     }
                 })
                 .collect()
