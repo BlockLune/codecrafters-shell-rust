@@ -62,17 +62,29 @@ impl Completer for ShellHelper {
             fs::read_dir(directory_path)
                 .unwrap()
                 .filter_map(|entry| entry.ok())
-                .map(|dir_entry| dir_entry.file_name().to_string_lossy().to_string())
-                .filter(|entry| entry.starts_with(file_prefix))
+                .filter(|dir_entry| {
+                    dir_entry
+                        .file_name()
+                        .to_string_lossy()
+                        .to_string()
+                        .starts_with(file_prefix)
+                })
                 .map(|entry| {
-                    let display = if directory_path == "./" {
-                        format!("{}", entry)
+                    let suffix = if entry.file_type().unwrap().is_dir() {
+                        "/"
                     } else {
-                        format!("{}{}", directory_path, entry)
+                        " "
+                    };
+                    let filename = entry.file_name().to_string_lossy().to_string();
+
+                    let display = if directory_path == "./" {
+                        format!("{}", filename)
+                    } else {
+                        format!("{}{}", directory_path, filename)
                     };
                     Pair {
                         display: display.to_string(),
-                        replacement: format!("{} ", display),
+                        replacement: format!("{}{}", display, suffix),
                     }
                 }),
         );
