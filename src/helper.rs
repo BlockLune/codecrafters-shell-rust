@@ -24,6 +24,7 @@ impl ShellHelper {
         commands.extend(app_state.get_external_executables().keys().cloned());
 
         commands.sort();
+        commands.dedup();
         ShellHelper { commands }
     }
 }
