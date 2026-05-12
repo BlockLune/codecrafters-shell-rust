@@ -146,11 +146,16 @@ fn cd_command(
 
 fn complete_command(
     _app_state: &mut AppState,
-    _args: Vec<&str>,
+    args: Vec<&str>,
     mut _out_output: Box<dyn Write>,
-    mut _err_output: Box<dyn Write>,
+    mut err_output: Box<dyn Write>,
 ) {
-    todo!();
+    if let Some((idx, _)) = args.iter().enumerate().find(|&(_, &arg)| arg == "-p") {
+        if idx + 1 < args.len() {
+            let program = args[idx + 1];
+            let _ = writeln!(err_output, "complete: {}: no completion specification", program);
+        }
+    }
 }
 
 fn exec_external(
