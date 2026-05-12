@@ -39,26 +39,26 @@ impl Completer for ShellHelper {
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
         let word_start = line[..pos].rfind(' ').map_or(0, |i| i + 1);
         let prefix = &line[word_start..pos];
+        let matches = if word_start == 0 {
+            // command
+            self.candidates
+                .iter()
+                .filter(|command| command.starts_with(prefix))
+                .map(|command| Pair {
+                    display: command.to_string(),
+                    replacement: format!("{} ", command),
+                })
+                .collect()
+        } else if word_start > 0 {
+            // path
+            let mut directory_path = "./";
+            let mut file_prefix = prefix;
+            if prefix.contains('/') {
+                let directory_path_end = prefix.rfind('/').unwrap();
+                directory_path = &prefix[..=directory_path_end];
+                file_prefix = &prefix[directory_path_end + 1..];
+            }
 
-        let mut matches: Vec<_> = self
-            .candidates
-            .iter()
-            .filter(|command| command.starts_with(prefix))
-            .map(|command| Pair {
-                display: command.to_string(),
-                replacement: format!("{} ", command),
-            })
-            .collect();
-
-        // path
-        let mut directory_path = "./";
-        let mut file_prefix = prefix;
-        if prefix.contains('/') {
-            let directory_path_end = prefix.rfind('/').unwrap();
-            directory_path = &prefix[..=directory_path_end];
-            file_prefix = &prefix[directory_path_end + 1..];
-        }
-        matches.extend(
             fs::read_dir(directory_path)
                 .unwrap()
                 .filter_map(|entry| entry.ok())
@@ -86,8 +86,11 @@ impl Completer for ShellHelper {
                         display: display.to_string(),
                         replacement: format!("{}{}", display, suffix),
                     }
-                }),
-        );
+                })
+                .collect()
+        } else {
+            unreachable!()
+        };
 
         Ok((word_start, matches))
     }
