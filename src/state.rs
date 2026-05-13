@@ -1,11 +1,12 @@
-use std::env;
-use std::path::{Path, PathBuf};
 use std::collections::HashMap;
+use std::env;
 use std::fs;
+use std::path::{Path, PathBuf};
 
 pub struct AppState {
     cwd: PathBuf,
     external_executables: HashMap<String, PathBuf>,
+    completions: HashMap<String, PathBuf>,
 }
 
 impl AppState {
@@ -13,7 +14,12 @@ impl AppState {
         let cwd =
             env::current_dir().map_err(|_| String::from("failed to get current directory"))?;
         let external_executables = build_executables();
-        Ok(Self { cwd, external_executables })
+        let completions = HashMap::new();
+        Ok(Self {
+            cwd,
+            external_executables,
+            completions,
+        })
     }
 
     pub fn get_cwd(&self) -> &Path {
@@ -22,6 +28,14 @@ impl AppState {
 
     pub fn get_external_executables(&self) -> &HashMap<String, PathBuf> {
         &self.external_executables
+    }
+
+    pub fn register_completion(&mut self, name: String, completer_path: PathBuf) {
+        let _ = &self.completions.insert(name, completer_path);
+    }
+
+    pub fn get_completion(&self, name: &String) -> Option<&PathBuf> {
+        self.completions.get(name)
     }
 
     pub fn cd(&mut self, path: PathBuf) -> Result<(), String> {

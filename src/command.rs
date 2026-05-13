@@ -51,9 +51,7 @@ impl<'a> Command<'a> {
             Self::BuiltinPwd => pwd_command(app_state, args, stdout, stderr),
             Self::BuiltinCd => cd_command(app_state, args, stdout, stderr),
             Self::BuiltinComplete => complete_command(app_state, args, stdout, stderr),
-            Self::External(command) => {
-                exec_external(app_state, command, args, stdout, stderr)
-            }
+            Self::External(command) => exec_external(app_state, command, args, stdout, stderr),
         }
     }
 }
@@ -145,15 +143,53 @@ fn cd_command(
 }
 
 fn complete_command(
-    _app_state: &mut AppState,
+    app_state: &mut AppState,
     args: Vec<&str>,
-    mut _stdout: Box<dyn Write>,
+    mut stdout: Box<dyn Write>,
     mut stderr: Box<dyn Write>,
 ) {
-    if let Some((idx, _)) = args.iter().enumerate().find(|&(_, &arg)| arg == "-p") {
-        if idx + 1 < args.len() {
-            let program = args[idx + 1];
-            let _ = writeln!(stderr, "complete: {}: no completion specification", program);
+    let mut print_flag = false;
+    let mut completer_path: Option<PathBuf> = None;
+    let mut names: Vec<String> = Vec::new();
+
+    let mut i = 0;
+    while i < args.len() {
+        let arg = args[i];
+        if arg == "-p" {
+            print_flag = true;
+        } else if arg == "-C" {
+            if i + 1 >= args.len() {
+                let _ = writeln!(stderr, "complete: -C: option requires an argument");
+                return;
+            }
+            completer_path = Some(PathBuf::from(args[i + 1]));
+
+            i += 1;
+        } else {
+            names.push(arg.to_string());
+        }
+
+        i += 1;
+    }
+
+    for name in names {
+        if print_flag {
+            if let Some(completer_path) = app_state.get_completion(&name) {
+                let _ = writeln!(
+                    stdout,
+                    "complete -C '{}' {}",
+                    completer_path.display(),
+                    name
+                );
+            } else {
+                let _ = writeln!(stderr, "complete: {}: no completion specification", name);
+            }
+        } else {
+            // Or use: `if let Some(ref path) = completer_path`
+            // where `ref` indicates: use borrow in pattern matching, instead of move
+            if let Some(path) = completer_path.as_ref() {
+                app_state.register_completion(name, path.clone());
+            }
         }
     }
 }
