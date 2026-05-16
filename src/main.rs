@@ -2,6 +2,9 @@ use rustyline::config::Config;
 use rustyline::history::DefaultHistory;
 use rustyline::{Editor, error::ReadlineError};
 
+use std::cell::RefCell;
+use std::rc::Rc;
+
 mod command;
 mod helper;
 mod parser;
@@ -14,8 +17,8 @@ use parser::ParsedCommand;
 use state::AppState;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut app_state = AppState::default()?;
-    let shell_helper = ShellHelper::new(&app_state);
+    let app_state = Rc::new(RefCell::new(AppState::default()?));
+    let shell_helper = ShellHelper::new(Rc::clone(&app_state));
     let config = Config::builder()
         .completion_type(rustyline::CompletionType::List)
         .build();
@@ -24,14 +27,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // REPL (Read-Eval-Print Loop)
     loop {
-        if let Err(e) = one_turn(&mut app_state, &mut rl) {
+        if let Err(e) = one_turn(Rc::clone(&app_state), &mut rl) {
             eprintln!("Error: {}", e);
         }
     }
 }
 
 fn one_turn(
-    app_state: &mut AppState,
+    app_state: Rc<RefCell<AppState>>,
     rl: &mut Editor<ShellHelper, DefaultHistory>,
 ) -> Result<(), String> {
     match rl.readline("$ ") {
@@ -48,7 +51,7 @@ fn one_turn(
                 stderr,
             } = parser::parse_command(&tokens)?;
 
-            Command::from_str(command).exec(app_state, args, stdout, stderr);
+            Command::from_str(command).exec(Rc::clone(&app_state), args, stdout, stderr);
             Ok(())
         }
         Err(ReadlineError::Interrupted) => {

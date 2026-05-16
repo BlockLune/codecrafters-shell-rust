@@ -1,7 +1,9 @@
+use std::cell::RefCell;
 use std::env;
 use std::io::Write;
 use std::path::PathBuf;
 use std::process;
+use std::rc::Rc;
 
 use crate::state::AppState;
 
@@ -39,7 +41,7 @@ impl<'a> Command<'a> {
 
     pub fn exec(
         &self,
-        app_state: &mut AppState,
+        app_state: Rc<RefCell<AppState>>,
         args: Vec<&str>,
         stdout: Box<dyn Write>,
         stderr: Box<dyn Write>,
@@ -57,7 +59,7 @@ impl<'a> Command<'a> {
 }
 
 fn exit_command(
-    _app_state: &mut AppState,
+    _app_state: Rc<RefCell<AppState>>,
     args: Vec<&str>,
     mut stdout: Box<dyn Write>,
     mut stderr: Box<dyn Write>,
@@ -77,7 +79,7 @@ fn exit_command(
 }
 
 fn echo_command(
-    _app_state: &mut AppState,
+    _app_state: Rc<RefCell<AppState>>,
     args: Vec<&str>,
     mut stdout: Box<dyn Write>,
     mut _stderr: Box<dyn Write>,
@@ -86,7 +88,7 @@ fn echo_command(
 }
 
 fn type_command(
-    app_state: &mut AppState,
+    app_state: Rc<RefCell<AppState>>,
     args: Vec<&str>,
     mut stdout: Box<dyn Write>,
     mut _stderr: Box<dyn Write>,
@@ -95,6 +97,7 @@ fn type_command(
         if Command::is_builtin(command) {
             let _ = writeln!(stdout, "{} is a shell builtin", command);
         } else {
+            let app_state = app_state.borrow();
             let executables = app_state.external_executables();
             if executables.contains_key(command) {
                 let _ = writeln!(
@@ -111,17 +114,18 @@ fn type_command(
 }
 
 fn pwd_command(
-    app_state: &mut AppState,
+    app_state: Rc<RefCell<AppState>>,
     _args: Vec<&str>,
     mut stdout: Box<dyn Write>,
     mut _stderr: Box<dyn Write>,
 ) {
+    let app_state = app_state.borrow();
     let path = app_state.cwd();
     let _ = writeln!(stdout, "{}", path.display());
 }
 
 fn cd_command(
-    app_state: &mut AppState,
+    app_state: Rc<RefCell<AppState>>,
     args: Vec<&str>,
     mut _stdout: Box<dyn Write>,
     mut stderr: Box<dyn Write>,
@@ -137,13 +141,14 @@ fn cd_command(
         PathBuf::from(args[0])
     };
 
+    let mut app_state = app_state.borrow_mut();
     let _ = app_state
         .cd(path.clone())
         .map_err(|e| writeln!(stderr, "cd: {}: {}", path.display(), e));
 }
 
 fn complete_command(
-    app_state: &mut AppState,
+    app_state: Rc<RefCell<AppState>>,
     args: Vec<&str>,
     mut stdout: Box<dyn Write>,
     mut stderr: Box<dyn Write>,
@@ -174,6 +179,7 @@ fn complete_command(
 
     for name in names {
         if print_flag {
+            let app_state = app_state.borrow();
             if let Some(completer_path) = app_state.get_completer(&name) {
                 let _ = writeln!(
                     stdout,
@@ -188,6 +194,7 @@ fn complete_command(
             // Or use: `if let Some(ref path) = completer_path`
             // where `ref` indicates: use borrow in pattern matching, instead of move
             if let Some(path) = completer_path.as_ref() {
+                let mut app_state = app_state.borrow_mut();
                 app_state.register_completion(name, path.clone());
             }
         }
@@ -195,12 +202,14 @@ fn complete_command(
 }
 
 fn exec_external(
-    app_state: &AppState,
+    app_state: Rc<RefCell<AppState>>,
     command: &str,
     args: Vec<&str>,
     mut stdout: Box<dyn Write>,
     mut stderr: Box<dyn Write>,
 ) {
+    let app_state = app_state.borrow();
+
     if !app_state.external_executables().contains_key(command) {
         let _ = writeln!(stdout, "{}: command not found", command);
         return;

@@ -4,17 +4,22 @@ use rustyline::highlight::Highlighter;
 use rustyline::hint::Hinter;
 use rustyline::validate::Validator;
 
+use std::cell::RefCell;
 use std::fs;
+use std::path::PathBuf;
+use std::process;
+use std::rc::Rc;
 
 use crate::command;
 use crate::state::AppState;
 
 pub struct ShellHelper {
     commands: Vec<String>,
+    app_state: Rc<RefCell<AppState>>,
 }
 
 impl ShellHelper {
-    pub fn new(app_state: &AppState) -> Self {
+    pub fn new(app_state: Rc<RefCell<AppState>>) -> Self {
         // builtin commands
         let mut commands: Vec<String> = command::BUILTIN_COMMANDS
             .iter()
@@ -22,11 +27,14 @@ impl ShellHelper {
             .collect();
 
         // external commands
-        commands.extend(app_state.external_executables().keys().cloned());
+        commands.extend(app_state.borrow().external_executables().keys().cloned());
 
         commands.sort();
         commands.dedup();
-        ShellHelper { commands }
+        ShellHelper {
+            commands,
+            app_state,
+        }
     }
 
     fn complete_command(&self, prefix: &str) -> Vec<Pair> {
@@ -71,6 +79,43 @@ impl ShellHelper {
             })
             .collect()
     }
+
+    fn complete_with_completer(&self, completer: &PathBuf) -> Vec<Pair> {
+        let mut ret = Vec::new();
+        let app_state = self.app_state.borrow();
+
+        let Ok(output) = process::Command::new(completer)
+            .current_dir(app_state.cwd())
+            .output()
+        else {
+            return ret;
+        };
+
+        let stdout_str = String::from_utf8_lossy(&output.stdout);
+        if !stdout_str.is_empty() {
+            stdout_str.lines().for_each(|line| {
+                ret.push(Pair {
+                    display: line.to_string(),
+                    replacement: line.to_string(),
+                });
+            });
+        }
+
+        ret
+    }
+}
+
+fn first_char_pos(line: &str) -> usize {
+    let line: Vec<_> = line.chars().collect();
+
+    let mut i = 0;
+    while i < line.len() {
+        if line[i] != ' ' {
+            break;
+        }
+        i += 1;
+    }
+    i
 }
 
 impl Completer for ShellHelper {
@@ -85,10 +130,20 @@ impl Completer for ShellHelper {
         let word_start = line[..pos].rfind(' ').map_or(0, |i| i + 1);
         let prefix = &line[word_start..pos];
 
-        let mut matches = if word_start == 0 {
+        let mut matches = if word_start == first_char_pos(line) {
             self.complete_command(prefix)
         } else {
-            self.complete_path(prefix)
+            let command = line[..pos]
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .first()
+                .copied()
+                .unwrap();
+
+            match self.app_state.borrow().get_completer(command) {
+                Some(completer) => self.complete_with_completer(completer),
+                None => self.complete_path(prefix),
+            }
         };
 
         matches.sort_by(|a, b| a.display.cmp(&b.display));

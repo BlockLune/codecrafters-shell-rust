@@ -35,7 +35,7 @@ impl AppState {
         let _ = &self.completers.insert(name, completer_path);
     }
 
-    pub fn get_completer(&self, name: &String) -> Option<&PathBuf> {
+    pub fn get_completer(&self, name: &str) -> Option<&PathBuf> {
         self.completers.get(name)
     }
 
