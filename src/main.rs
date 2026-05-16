@@ -10,6 +10,7 @@ mod helper;
 mod parser;
 mod state;
 mod tokenizer;
+mod job;
 
 use command::Command;
 use helper::ShellHelper;

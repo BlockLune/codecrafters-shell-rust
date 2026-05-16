@@ -214,11 +214,25 @@ fn complete_command(
 }
 
 fn jobs_command(
-    _app_state: Rc<RefCell<AppState>>,
+    app_state: Rc<RefCell<AppState>>,
     _args: Vec<&str>,
-    mut _stdout: Box<dyn Write>,
+    mut stdout: Box<dyn Write>,
     mut _stderr: Box<dyn Write>,
 ) {
+    let app_state = app_state.borrow();
+    let jobs = app_state.jobs();
+    let n_jobs = jobs.len();
+
+    for job in jobs {
+        let _ = writeln!(
+            stdout,
+            "[{}]{}  {:<24}{}",
+            job.job_number,
+            if job.job_number == n_jobs { "+" } else { " " },
+            "Running".to_string(),
+            job.command_line
+        );
+    }
 }
 
 fn exec_external(
@@ -239,11 +253,12 @@ fn exec_external(
     if run_in_background {
         let child = process::Command::new(command)
             .current_dir(app_state.cwd())
-            .args(args)
+            .args(args.clone())
             .spawn()
             .expect("failed to execute process");
         let pid = child.id();
-        let job_number = app_state.add_background_job(pid);
+        let job_number =
+            app_state.add_background_job(format!("{} {}", command, args.join(" ")).as_str(), pid);
         let _ = writeln!(stdout, "[{}] {}", job_number, pid);
         return;
     }

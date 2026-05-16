@@ -3,11 +3,13 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::job::Job;
+
 pub struct AppState {
     cwd: PathBuf,
     external_executables: HashMap<String, PathBuf>,
     completers: HashMap<String, PathBuf>,
-    background_jobs: Vec<u32>,
+    background_jobs: Vec<Job>,
 }
 
 impl AppState {
@@ -66,9 +68,14 @@ impl AppState {
         Ok(())
     }
 
-    pub fn add_background_job(&mut self, pid: u32) -> usize {
-        self.background_jobs.push(pid);
+    pub fn add_background_job(&mut self, command_line: &str, pid: u32) -> usize {
+        self.background_jobs
+            .push(Job::new(self.background_jobs.len() + 1, command_line, pid));
         self.background_jobs.len()
+    }
+
+    pub fn jobs(&self) -> &Vec<Job> {
+        &self.background_jobs
     }
 }
 
