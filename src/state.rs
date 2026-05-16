@@ -39,6 +39,10 @@ impl AppState {
         self.completers.get(name)
     }
 
+    pub fn unregister_completion(&mut self, name: String) {
+        let _ = self.completers.remove(&name);
+    }
+
     pub fn cd(&mut self, path: PathBuf) -> Result<(), String> {
         let target = if path.is_absolute() {
             path

@@ -154,6 +154,7 @@ fn complete_command(
     mut stderr: Box<dyn Write>,
 ) {
     let mut print_flag = false;
+    let mut unregister_flag = false;
     let mut completer_path: Option<PathBuf> = None;
     let mut names: Vec<String> = Vec::new();
 
@@ -170,6 +171,8 @@ fn complete_command(
             completer_path = Some(PathBuf::from(args[i + 1]));
 
             i += 1;
+        } else if arg == "-r" {
+            unregister_flag = true;
         } else {
             names.push(arg.to_string());
         }
@@ -190,6 +193,9 @@ fn complete_command(
             } else {
                 let _ = writeln!(stderr, "complete: {}: no completion specification", name);
             }
+        } else if unregister_flag {
+            let mut app_state = app_state.borrow_mut();
+            app_state.unregister_completion(name);
         } else {
             // Or use: `if let Some(ref path) = completer_path`
             // where `ref` indicates: use borrow in pattern matching, instead of move
