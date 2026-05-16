@@ -224,11 +224,19 @@ fn jobs_command(
     let n_jobs = jobs.len();
 
     for job in jobs {
+        let indicator = if job.job_number == n_jobs {
+            "+"
+        } else if job.job_number == n_jobs - 1 {
+            "-"
+        } else {
+            " "
+        };
+
         let _ = writeln!(
             stdout,
             "[{}]{}  {:<24}{}",
             job.job_number,
-            if job.job_number == n_jobs { "+" } else { " " },
+            indicator,
             "Running".to_string(),
             job.command_line
         );
