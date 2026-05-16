@@ -6,8 +6,8 @@ use rustyline::validate::Validator;
 
 use std::fs;
 
-use crate::state::AppState;
 use crate::command;
+use crate::state::AppState;
 
 pub struct ShellHelper {
     commands: Vec<String>,
@@ -28,6 +28,49 @@ impl ShellHelper {
         commands.dedup();
         ShellHelper { commands }
     }
+
+    fn complete_command(&self, prefix: &str) -> Vec<Pair> {
+        self.commands
+            .iter()
+            .filter(|command| command.starts_with(prefix))
+            .map(|command| Pair {
+                display: command.clone(),
+                replacement: command.clone(),
+            })
+            .collect()
+    }
+
+    fn complete_path(&self, prefix: &str) -> Vec<Pair> {
+        let (dir_path, display_prefix, file_prefix) = match prefix.rfind('/') {
+            Some(idx) => (&prefix[..=idx], &prefix[..=idx], &prefix[idx + 1..]),
+            None => ("./", "", prefix),
+        };
+
+        let Ok(read_dir) = fs::read_dir(dir_path) else {
+            return Vec::new();
+        };
+
+        read_dir
+            .filter_map(Result::ok)
+            .filter_map(|entry| {
+                let mut name = entry.file_name().into_string().ok()?;
+                if !name.starts_with(file_prefix) {
+                    return None;
+                }
+
+                if entry.file_type().map_or(false, |ft| ft.is_dir()) {
+                    name.push('/');
+                }
+
+                let full_path = format!("{}{}", display_prefix, name);
+
+                Some(Pair {
+                    display: full_path.clone(),
+                    replacement: full_path,
+                })
+            })
+            .collect()
+    }
 }
 
 impl Completer for ShellHelper {
@@ -41,83 +84,21 @@ impl Completer for ShellHelper {
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
         let word_start = line[..pos].rfind(' ').map_or(0, |i| i + 1);
         let prefix = &line[word_start..pos];
-        let matches = if word_start == 0 {
-            // command
-            let cmd_matches: Vec<_> = self
-                .commands
-                .iter()
-                .filter(|command| command.starts_with(prefix))
-                .collect();
 
-            let single = cmd_matches.len() == 1;
-            cmd_matches
-                .iter()
-                .map(|command| Pair {
-                    display: command.to_string(),
-                    replacement: if single {
-                        format!("{} ", command)
-                    } else {
-                        command.to_string()
-                    },
-                })
-                .collect()
+        let mut matches = if word_start == 0 {
+            self.complete_command(prefix)
         } else {
-            // path
-            let mut directory_path = "./";
-            let mut file_prefix = prefix;
-            if prefix.contains('/') {
-                let directory_path_end = prefix.rfind('/').unwrap();
-                directory_path = &prefix[..=directory_path_end];
-                file_prefix = &prefix[directory_path_end + 1..];
-            }
-
-            let dir_name = if directory_path == "./" {
-                ""
-            } else {
-                directory_path
-            };
-
-            let mut dir_entries: Vec<_> = fs::read_dir(directory_path)
-                .unwrap()
-                .filter_map(|entry| entry.ok())
-                .filter(|dir_entry| {
-                    dir_entry
-                        .file_name()
-                        .to_string_lossy()
-                        .to_string()
-                        .starts_with(file_prefix)
-                })
-                .collect();
-
-            dir_entries.sort_by(|a, b| {
-                a.file_name()
-                    .to_string_lossy()
-                    .to_string()
-                    .cmp(&b.file_name().to_string_lossy().to_string())
-            });
-
-            let single = dir_entries.len() == 1;
-            dir_entries
-                .iter()
-                .map(|entry| {
-                    let is_dir = entry.file_type().unwrap().is_dir();
-                    let name = entry.file_name().to_string_lossy().to_string();
-                    Pair {
-                        display: format!("{}{}{}", dir_name, name, if is_dir { "/" } else { "" }),
-                        replacement: format!(
-                            "{}{}{}",
-                            dir_name,
-                            name,
-                            if single {
-                                if is_dir { "/" } else { " " }
-                            } else {
-                                ""
-                            }
-                        ),
-                    }
-                })
-                .collect()
+            self.complete_path(prefix)
         };
+
+        matches.sort_by(|a, b| a.display.cmp(&b.display));
+
+        if matches.len() == 1 {
+            let pair = &mut matches[0];
+            if !pair.replacement.ends_with('/') {
+                pair.replacement.push(' ');
+            }
+        }
 
         Ok((word_start, matches))
     }
