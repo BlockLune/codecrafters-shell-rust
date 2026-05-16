@@ -145,11 +145,7 @@ impl Completer for ShellHelper {
             let parts: Vec<_> = line[..word_start].split_whitespace().collect();
 
             let command = parts.first().copied().unwrap();
-            let preceding_word = if parts.len() >= 2 {
-                parts.last().copied().unwrap()
-            } else {
-                ""
-            };
+            let preceding_word = parts.last().copied().unwrap_or("");
 
             let args = vec![command, prefix, preceding_word];
 
