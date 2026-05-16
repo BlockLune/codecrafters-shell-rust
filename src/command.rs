@@ -7,7 +7,7 @@ use std::rc::Rc;
 
 use crate::state::AppState;
 
-pub const BUILTIN_COMMANDS: &[&str] = &["exit", "echo", "type", "pwd", "cd", "complete"];
+pub const BUILTIN_COMMANDS: &[&str] = &["exit", "echo", "type", "pwd", "cd", "complete", "jobs"];
 
 pub enum Command<'a> {
     BuiltinExit,
@@ -16,6 +16,7 @@ pub enum Command<'a> {
     BuiltinPwd,
     BuiltinCd,
     BuiltinComplete,
+    BuiltinJobs,
     External(&'a str),
 }
 
@@ -35,6 +36,7 @@ impl<'a> Command<'a> {
             "pwd" => Self::BuiltinPwd,
             "cd" => Self::BuiltinCd,
             "complete" => Self::BuiltinComplete,
+            "jobs" => Self::BuiltinJobs,
             external_command => Self::External(external_command),
         }
     }
@@ -53,6 +55,7 @@ impl<'a> Command<'a> {
             Self::BuiltinPwd => pwd_command(app_state, args, stdout, stderr),
             Self::BuiltinCd => cd_command(app_state, args, stdout, stderr),
             Self::BuiltinComplete => complete_command(app_state, args, stdout, stderr),
+            Self::BuiltinJobs => jobs_command(app_state, args, stdout, stderr),
             Self::External(command) => exec_external(app_state, command, args, stdout, stderr),
         }
     }
@@ -205,6 +208,14 @@ fn complete_command(
             }
         }
     }
+}
+
+fn jobs_command(
+    _app_state: Rc<RefCell<AppState>>,
+    _args: Vec<&str>,
+    mut _stdout: Box<dyn Write>,
+    mut _stderr: Box<dyn Write>,
+) {
 }
 
 fn exec_external(
