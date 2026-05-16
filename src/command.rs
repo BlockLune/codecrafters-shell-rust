@@ -95,7 +95,7 @@ fn type_command(
         if Command::is_builtin(command) {
             let _ = writeln!(stdout, "{} is a shell builtin", command);
         } else {
-            let executables = app_state.get_external_executables();
+            let executables = app_state.external_executables();
             if executables.contains_key(command) {
                 let _ = writeln!(
                     stdout,
@@ -116,7 +116,7 @@ fn pwd_command(
     mut stdout: Box<dyn Write>,
     mut _stderr: Box<dyn Write>,
 ) {
-    let path = app_state.get_cwd();
+    let path = app_state.cwd();
     let _ = writeln!(stdout, "{}", path.display());
 }
 
@@ -201,13 +201,13 @@ fn exec_external(
     mut stdout: Box<dyn Write>,
     mut stderr: Box<dyn Write>,
 ) {
-    if !app_state.get_external_executables().contains_key(command) {
+    if !app_state.external_executables().contains_key(command) {
         let _ = writeln!(stdout, "{}: command not found", command);
         return;
     }
 
     let output = process::Command::new(command)
-        .current_dir(app_state.get_cwd())
+        .current_dir(app_state.cwd())
         .args(args)
         .output()
         .expect("failed to execute process");

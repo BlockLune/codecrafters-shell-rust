@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 pub struct AppState {
     cwd: PathBuf,
     external_executables: HashMap<String, PathBuf>,
-    completions: HashMap<String, PathBuf>,
+    completers: HashMap<String, PathBuf>,
 }
 
 impl AppState {
@@ -14,28 +14,29 @@ impl AppState {
         let cwd =
             env::current_dir().map_err(|_| String::from("failed to get current directory"))?;
         let external_executables = build_executables();
-        let completions = HashMap::new();
+        let completers = HashMap::new();
+
         Ok(Self {
             cwd,
             external_executables,
-            completions,
+            completers,
         })
     }
 
-    pub fn get_cwd(&self) -> &Path {
+    pub fn cwd(&self) -> &Path {
         &self.cwd
     }
 
-    pub fn get_external_executables(&self) -> &HashMap<String, PathBuf> {
+    pub fn external_executables(&self) -> &HashMap<String, PathBuf> {
         &self.external_executables
     }
 
     pub fn register_completion(&mut self, name: String, completer_path: PathBuf) {
-        let _ = &self.completions.insert(name, completer_path);
+        let _ = &self.completers.insert(name, completer_path);
     }
 
     pub fn get_completion(&self, name: &String) -> Option<&PathBuf> {
-        self.completions.get(name)
+        self.completers.get(name)
     }
 
     pub fn cd(&mut self, path: PathBuf) -> Result<(), String> {

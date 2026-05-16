@@ -22,7 +22,7 @@ impl ShellHelper {
             .collect();
 
         // external commands
-        commands.extend(app_state.get_external_executables().keys().cloned());
+        commands.extend(app_state.external_executables().keys().cloned());
 
         commands.sort();
         commands.dedup();
