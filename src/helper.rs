@@ -80,12 +80,13 @@ impl ShellHelper {
             .collect()
     }
 
-    fn complete_with_completer(&self, completer: &PathBuf) -> Vec<Pair> {
+    fn complete_with_completer(&self, completer: &PathBuf, args: Vec<&str>) -> Vec<Pair> {
         let mut ret = Vec::new();
         let app_state = self.app_state.borrow();
 
         let Ok(output) = process::Command::new(completer)
             .current_dir(app_state.cwd())
+            .args(args)
             .output()
         else {
             return ret;
@@ -133,15 +134,19 @@ impl Completer for ShellHelper {
         let mut matches = if word_start == first_char_pos(line) {
             self.complete_command(prefix)
         } else {
-            let command = line[..pos]
-                .split_whitespace()
-                .collect::<Vec<_>>()
-                .first()
-                .copied()
-                .unwrap();
+            let parts: Vec<_> = line[..word_start].split_whitespace().collect();
+
+            let command = parts.first().copied().unwrap();
+            let preceding_word = if parts.len() >= 2 {
+                parts.last().copied().unwrap()
+            } else {
+                ""
+            };
+
+            let args = vec![command, prefix, preceding_word];
 
             match self.app_state.borrow().get_completer(command) {
-                Some(completer) => self.complete_with_completer(completer),
+                Some(completer) => self.complete_with_completer(completer, args),
                 None => self.complete_path(prefix),
             }
         };
