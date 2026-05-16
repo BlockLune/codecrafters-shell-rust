@@ -240,8 +240,6 @@ fn exec_external(
         let child = process::Command::new(command)
             .current_dir(app_state.cwd())
             .args(args)
-            .stdout(process::Stdio::null()) // TODO: tmp
-            .stderr(process::Stdio::null()) // TODO: tmp
             .spawn()
             .expect("failed to execute process");
         let pid = child.id();
