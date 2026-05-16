@@ -174,7 +174,7 @@ fn complete_command(
 
     for name in names {
         if print_flag {
-            if let Some(completer_path) = app_state.get_completion(&name) {
+            if let Some(completer_path) = app_state.get_completer(&name) {
                 let _ = writeln!(
                     stdout,
                     "complete -C '{}' {}",
