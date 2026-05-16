@@ -49,9 +49,16 @@ fn one_turn(
                 args,
                 stdout,
                 stderr,
+                run_in_background,
             } = parser::parse_command(&tokens)?;
 
-            Command::from_str(command).exec(Rc::clone(&app_state), args, stdout, stderr);
+            Command::from_str(command).exec(
+                Rc::clone(&app_state),
+                args,
+                run_in_background,
+                stdout,
+                stderr,
+            );
             Ok(())
         }
         Err(ReadlineError::Interrupted) => {

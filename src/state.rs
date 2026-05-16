@@ -7,6 +7,7 @@ pub struct AppState {
     cwd: PathBuf,
     external_executables: HashMap<String, PathBuf>,
     completers: HashMap<String, PathBuf>,
+    background_jobs: Vec<u32>,
 }
 
 impl AppState {
@@ -15,11 +16,13 @@ impl AppState {
             env::current_dir().map_err(|_| String::from("failed to get current directory"))?;
         let external_executables = build_executables();
         let completers = HashMap::new();
+        let background_jobs = Vec::new();
 
         Ok(Self {
             cwd,
             external_executables,
             completers,
+            background_jobs,
         })
     }
 
@@ -61,6 +64,11 @@ impl AppState {
         self.cwd = canonicalized;
 
         Ok(())
+    }
+
+    pub fn add_background_job(&mut self, pid: u32) -> usize {
+        self.background_jobs.push(pid);
+        self.background_jobs.len()
     }
 }
 

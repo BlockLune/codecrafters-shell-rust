@@ -45,6 +45,7 @@ impl<'a> Command<'a> {
         &self,
         app_state: Rc<RefCell<AppState>>,
         args: Vec<&str>,
+        run_in_background: bool,
         stdout: Box<dyn Write>,
         stderr: Box<dyn Write>,
     ) {
@@ -56,7 +57,9 @@ impl<'a> Command<'a> {
             Self::BuiltinCd => cd_command(app_state, args, stdout, stderr),
             Self::BuiltinComplete => complete_command(app_state, args, stdout, stderr),
             Self::BuiltinJobs => jobs_command(app_state, args, stdout, stderr),
-            Self::External(command) => exec_external(app_state, command, args, stdout, stderr),
+            Self::External(command) => {
+                exec_external(app_state, command, args, run_in_background, stdout, stderr)
+            }
         }
     }
 }
@@ -222,13 +225,28 @@ fn exec_external(
     app_state: Rc<RefCell<AppState>>,
     command: &str,
     args: Vec<&str>,
+    run_in_background: bool,
     mut stdout: Box<dyn Write>,
     mut stderr: Box<dyn Write>,
 ) {
-    let app_state = app_state.borrow();
+    let mut app_state = app_state.borrow_mut();
 
     if !app_state.external_executables().contains_key(command) {
         let _ = writeln!(stdout, "{}: command not found", command);
+        return;
+    }
+
+    if run_in_background {
+        let child = process::Command::new(command)
+            .current_dir(app_state.cwd())
+            .args(args)
+            .stdout(process::Stdio::null()) // TODO: tmp
+            .stderr(process::Stdio::null()) // TODO: tmp
+            .spawn()
+            .expect("failed to execute process");
+        let pid = child.id();
+        let job_number = app_state.add_background_job(pid);
+        let _ = writeln!(stdout, "[{}] {}", job_number, pid);
         return;
     }
 
