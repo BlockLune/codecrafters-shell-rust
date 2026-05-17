@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process;
 
 use crate::job::Job;
 
@@ -68,14 +69,14 @@ impl AppState {
         Ok(())
     }
 
-    pub fn add_background_job(&mut self, command_line: &str, pid: u32) -> usize {
+    pub fn add_background_job(&mut self, command_line: &str, child: process::Child) -> usize {
         self.background_jobs
-            .push(Job::new(self.background_jobs.len() + 1, command_line, pid));
+            .push(Job::new(self.background_jobs.len() + 1, command_line, child));
         self.background_jobs.len()
     }
 
-    pub fn jobs(&self) -> &Vec<Job> {
-        &self.background_jobs
+    pub fn jobs(&mut self) -> &mut Vec<Job> {
+        &mut self.background_jobs
     }
 }
 

@@ -219,11 +219,15 @@ fn jobs_command(
     mut stdout: Box<dyn Write>,
     mut _stderr: Box<dyn Write>,
 ) {
-    let app_state = app_state.borrow();
+    let mut app_state = app_state.borrow_mut();
     let jobs = app_state.jobs();
     let n_jobs = jobs.len();
 
     for job in jobs {
+        if job.done {
+            continue;
+        }
+
         let indicator = if job.job_number == n_jobs {
             "+"
         } else if job.job_number == n_jobs - 1 {
@@ -232,12 +236,22 @@ fn jobs_command(
             " "
         };
 
+        let status = match job.child.borrow_mut().try_wait() {
+            Ok(Some(_)) => String::from("Done"),
+            Ok(None) => String::from("Running"),
+            Err(_) => String::from("Unknown"),
+        };
+
+        if status == "Done" {
+            job.done = true;
+        }
+
         let _ = writeln!(
             stdout,
             "[{}]{}  {:<24}{}",
             job.job_number,
             indicator,
-            "Running".to_string(),
+            status,
             job.command_line
         );
     }
@@ -266,7 +280,7 @@ fn exec_external(
             .expect("failed to execute process");
         let pid = child.id();
         let job_number =
-            app_state.add_background_job(format!("{} {}", command, args.join(" ")).as_str(), pid);
+            app_state.add_background_job(format!("{} {}", command, args.join(" ")).as_str(), child);
         let _ = writeln!(stdout, "[{}] {}", job_number, pid);
         return;
     }
