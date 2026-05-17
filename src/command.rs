@@ -233,11 +233,7 @@ fn jobs_command(
             job.done = true;
         }
 
-        let _ = writeln!(
-            stdout,
-            "[{}]{}  {:<24}{}",
-            job.job_number, indicator, status, job.command_line
-        );
+        let _ = writeln!(stdout, "{}", job.display(indicator, status));
     }
 }
 

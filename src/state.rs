@@ -70,13 +70,32 @@ impl AppState {
     }
 
     pub fn add_background_job(&mut self, command_line: &str, child: process::Child) -> usize {
-        self.background_jobs
-            .push(Job::new(self.background_jobs.len() + 1, command_line, child));
+        self.background_jobs.push(Job::new(
+            self.background_jobs.len() + 1,
+            command_line,
+            child,
+        ));
         self.background_jobs.len()
     }
 
     pub fn jobs(&mut self) -> &mut Vec<Job> {
         &mut self.background_jobs
+    }
+
+    pub fn reap_done_jobs(&mut self) {
+        let statuses = Job::compute_job_status(&mut self.background_jobs);
+
+        for (job, entry) in self.background_jobs.iter_mut().zip(statuses.iter()) {
+            let Some((indicator, status)) = entry else {
+                continue;
+            };
+            if status == "Done" {
+                job.done = true;
+                println!("{}", job.display(indicator, status));
+            }
+        }
+
+        self.background_jobs.retain(|job| !job.done);
     }
 }
 

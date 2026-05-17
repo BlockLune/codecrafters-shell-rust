@@ -38,6 +38,8 @@ fn one_turn(
     app_state: Rc<RefCell<AppState>>,
     rl: &mut Editor<ShellHelper, DefaultHistory>,
 ) -> Result<(), String> {
+    app_state.borrow_mut().reap_done_jobs();
+
     match rl.readline("$ ") {
         Ok(input) => {
             let tokens = tokenizer::tokenize(&input)?;

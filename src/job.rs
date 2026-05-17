@@ -53,23 +53,32 @@ impl Job {
         let current_idx = active_indices.iter().last().copied();
         let previous_idx = active_indices.iter().rev().nth(1).copied();
 
-        jobs.iter_mut().enumerate().map(|(i, job)| {
-            if job.done {
-                return None;
-            }
+        jobs.iter_mut()
+            .enumerate()
+            .map(|(i, job)| {
+                if job.done {
+                    return None;
+                }
 
-            let indicator = if Some(i) == current_idx {
-                JobIndicator::Current
-            } else if Some(i) == previous_idx {
-                JobIndicator::Previous
-            } else {
-                JobIndicator::None
-            };
+                let indicator = if Some(i) == current_idx {
+                    JobIndicator::Current
+                } else if Some(i) == previous_idx {
+                    JobIndicator::Previous
+                } else {
+                    JobIndicator::None
+                };
 
-            let status = job.reap();
+                let status = job.reap();
 
-            Some((indicator, status))
+                Some((indicator, status))
+            })
+            .collect()
+    }
 
-        }).collect()
+    pub fn display(&self, indicator: &JobIndicator, status: &str) -> String {
+        format!(
+            "[{}]{}  {:<24}{}",
+            self.job_number, indicator, status, self.command_line
+        )
     }
 }
