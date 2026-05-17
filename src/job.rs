@@ -1,10 +1,9 @@
-use std::cell::RefCell;
 use std::process::Child;
 
 pub struct Job {
     pub job_number: usize, // start from 1
     pub command_line: String,
-    pub child: RefCell<Child>,
+    pub child: Child,
     pub done: bool,
 }
 
@@ -13,7 +12,7 @@ impl Job {
         Job {
             job_number,
             command_line: command_line.to_string(),
-            child: RefCell::new(child),
+            child,
             done: false,
         }
     }

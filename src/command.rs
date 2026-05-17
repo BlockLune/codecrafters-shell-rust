@@ -236,7 +236,7 @@ fn jobs_command(
             " "
         };
 
-        let status = match job.child.borrow_mut().try_wait() {
+        let status = match job.child.try_wait() {
             Ok(Some(_)) => String::from("Done"),
             Ok(None) => String::from("Running"),
             Err(_) => String::from("Unknown"),
