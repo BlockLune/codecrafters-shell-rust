@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::process;
 use std::rc::Rc;
 
+use crate::job::Job;
 use crate::state::AppState;
 
 pub const BUILTIN_COMMANDS: &[&str] = &["exit", "echo", "type", "pwd", "cd", "complete", "jobs"];
@@ -221,47 +222,12 @@ fn jobs_command(
 ) {
     let mut app_state = app_state.borrow_mut();
     let jobs = app_state.jobs();
-    let n_jobs = jobs.len();
+    let statuses = Job::compute_job_status(jobs);
 
-    let mut indicators: Vec<String> = vec![String::from(" "); n_jobs];
-    let mut statuses: Vec<String> = vec![String::from("Unknown"); n_jobs];
-    let mut last_found = false;
-    let mut last_last_found = false;
-
-    for (rev_idx, job) in jobs.iter_mut().rev().enumerate() {
-        if job.done {
+    for (job, entry) in jobs.iter_mut().zip(statuses.iter()) {
+        let Some((indicator, status)) = entry else {
             continue;
-        }
-
-        let idx = n_jobs - rev_idx - 1;
-
-        let status = match job.child.try_wait() {
-            Ok(Some(_)) => String::from("Done"),
-            Ok(None) => String::from("Running"),
-            Err(_) => String::from("Unknown"),
         };
-
-        statuses[idx] = status;
-
-        if !last_found && !last_last_found {
-            indicators[idx] = String::from("+");
-            last_found = true;
-        } else if last_found && !last_last_found {
-            indicators[idx] = String::from("-");
-            last_last_found = true;
-        } else {
-            indicators[idx] = String::from(" ");
-        }
-    }
-
-
-    for (idx, job) in jobs.iter_mut().enumerate() {
-        if job.done {
-            continue;
-        }
-
-        let indicator = &indicators[idx];
-        let status = &statuses[idx];
 
         if status == "Done" {
             job.done = true;
@@ -270,10 +236,7 @@ fn jobs_command(
         let _ = writeln!(
             stdout,
             "[{}]{}  {:<24}{}",
-            job.job_number,
-            indicator,
-            status,
-            job.command_line
+            job.job_number, indicator, status, job.command_line
         );
     }
 }
