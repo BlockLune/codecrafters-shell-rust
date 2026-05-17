@@ -223,24 +223,45 @@ fn jobs_command(
     let jobs = app_state.jobs();
     let n_jobs = jobs.len();
 
-    for job in jobs {
+    let mut indicators: Vec<String> = vec![String::from(" "); n_jobs];
+    let mut statuses: Vec<String> = vec![String::from("Unknown"); n_jobs];
+    let mut last_found = false;
+    let mut last_last_found = false;
+
+    for (rev_idx, job) in jobs.iter_mut().rev().enumerate() {
         if job.done {
             continue;
         }
 
-        let indicator = if job.job_number == n_jobs {
-            "+"
-        } else if job.job_number == n_jobs - 1 {
-            "-"
-        } else {
-            " "
-        };
+        let idx = n_jobs - rev_idx - 1;
 
         let status = match job.child.try_wait() {
             Ok(Some(_)) => String::from("Done"),
             Ok(None) => String::from("Running"),
             Err(_) => String::from("Unknown"),
         };
+
+        statuses[idx] = status;
+
+        if !last_found && !last_last_found {
+            indicators[idx] = String::from("+");
+            last_found = true;
+        } else if last_found && !last_last_found {
+            indicators[idx] = String::from("-");
+            last_last_found = true;
+        } else {
+            indicators[idx] = String::from(" ");
+        }
+    }
+
+
+    for (idx, job) in jobs.iter_mut().enumerate() {
+        if job.done {
+            continue;
+        }
+
+        let indicator = &indicators[idx];
+        let status = &statuses[idx];
 
         if status == "Done" {
             job.done = true;
