@@ -235,6 +235,8 @@ fn jobs_command(
 
         let _ = writeln!(stdout, "{}", job.display(indicator, status));
     }
+
+    jobs.retain(|job| !job.done);
 }
 
 fn exec_external(

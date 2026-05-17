@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -70,12 +70,19 @@ impl AppState {
     }
 
     pub fn add_background_job(&mut self, command_line: &str, child: process::Child) -> usize {
-        self.background_jobs.push(Job::new(
-            self.background_jobs.len() + 1,
-            command_line,
-            child,
-        ));
-        self.background_jobs.len()
+        let num = self.next_job_number();
+        self.background_jobs
+            .push(Job::new(num, command_line, child));
+        num
+    }
+
+    fn next_job_number(&self) -> usize {
+        let used: HashSet<usize> = self
+            .background_jobs
+            .iter()
+            .map(|job| job.job_number)
+            .collect();
+        (1..).find(|n| !used.contains(n)).unwrap()
     }
 
     pub fn jobs(&mut self) -> &mut Vec<Job> {
