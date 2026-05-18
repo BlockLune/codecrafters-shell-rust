@@ -3,19 +3,22 @@ use rustyline::history::DefaultHistory;
 use rustyline::{Editor, error::ReadlineError};
 
 use std::cell::RefCell;
+use std::process::{self, Stdio};
 use std::rc::Rc;
 
 mod command;
 mod helper;
+mod job;
 mod parser;
 mod state;
 mod tokenizer;
-mod job;
 
 use command::Command;
 use helper::ShellHelper;
 use parser::ParsedCommand;
 use state::AppState;
+
+use crate::parser::ParsedPipedCommands;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app_state = Rc::new(RefCell::new(AppState::default()?));
@@ -47,21 +50,60 @@ fn one_turn(
                 return Ok(());
             }
 
-            let ParsedCommand {
-                command,
-                args,
-                stdout,
-                stderr,
-                run_in_background,
-            } = parser::parse_command(&tokens)?;
+            if tokens.contains(&String::from("|")) {
+                let ParsedPipedCommands {
+                    command_list,
+                    args_list,
+                    mut stdout,
+                    mut stderr,
+                    run_in_background: _,
+                } = parser::parse_piped_commands(&tokens)?;
 
-            Command::from_str(command).exec(
-                Rc::clone(&app_state),
-                args,
-                run_in_background,
-                stdout,
-                stderr,
-            );
+                // For now, we have exactly two commands
+                let app_state = app_state.borrow();
+                let first_command = process::Command::new(command_list[0].as_str())
+                    .current_dir(app_state.cwd())
+                    .args(&args_list[0])
+                    .stdout(Stdio::piped())
+                    .spawn()
+                    .expect("failed to execute process");
+                let second_command = process::Command::new(command_list[1].as_str())
+                    .current_dir(app_state.cwd())
+                    .args(&args_list[1])
+                    .stdin(first_command.stdout.unwrap())
+                    .stdout(Stdio::piped())
+                    .spawn()
+                    .expect("failed to execute process");
+
+                let output = second_command.wait_with_output().expect("no output");
+
+                let stdout_str = String::from_utf8_lossy(&output.stdout);
+                if !stdout_str.is_empty() {
+                    let _ = write!(stdout, "{}", stdout_str);
+                }
+
+                let stderr_str = String::from_utf8_lossy(&output.stderr);
+                if !stderr_str.is_empty() {
+                    let _ = write!(stderr, "{}", stderr_str);
+                }
+            } else {
+                let ParsedCommand {
+                    command,
+                    args,
+                    stdout,
+                    stderr,
+                    run_in_background,
+                } = parser::parse_command(&tokens)?;
+
+                Command::from_str(command).exec(
+                    Rc::clone(&app_state),
+                    args,
+                    run_in_background,
+                    stdout,
+                    stderr,
+                );
+            }
+
             Ok(())
         }
         Err(ReadlineError::Interrupted) => {
