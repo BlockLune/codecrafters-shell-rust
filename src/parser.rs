@@ -9,14 +9,6 @@ pub struct ParsedCommand<'a> {
     pub run_in_background: bool,
 }
 
-pub struct ParsedPipedCommands {
-    pub command_list: Vec<String>,
-    pub args_list: Vec<Vec<String>>,
-    pub stdout: Box<dyn io::Write>,
-    pub stderr: Box<dyn io::Write>,
-    pub run_in_background: bool,
-}
-
 pub fn parse_command(tokens: &[String]) -> Result<ParsedCommand<'_>, String> {
     let command: &str = tokens.first().unwrap().as_str();
     let run_in_background = tokens.last().map_or(false, |token| token == "&");
@@ -32,7 +24,8 @@ pub fn parse_command(tokens: &[String]) -> Result<ParsedCommand<'_>, String> {
     let mut stderr: Box<dyn io::Write> = Box::new(io::stderr());
 
     let mut i = 0;
-    while i < args.len() { let token = args[i];
+    while i < args.len() {
+        let token = args[i];
         if token == ">"
             || token == "1>"
             || token == "2>"
@@ -67,38 +60,17 @@ pub fn parse_command(tokens: &[String]) -> Result<ParsedCommand<'_>, String> {
     })
 }
 
-pub fn parse_piped_commands(tokens: &[String]) -> Result<ParsedPipedCommands, String> {
-    let mut command_list = Vec::new();
-    let mut args_list = Vec::new();
-
-    let mut command_found = false;
-    let mut args: Vec<String> = Vec::new();
-
-    for token in tokens.iter() {
-        if token == "|" {
-            command_found = false;
-            args_list.push(args.clone());
-            args = Vec::new();
-            continue;
+pub fn split_pipeline(tokens: &[String]) -> Vec<&[String]> {
+    let mut segments: Vec<&[String]> = Vec::new();
+    let mut start = 0;
+    for (i, token) in tokens.iter().enumerate() {
+        if token == "|" && start != i {
+            segments.push(&tokens[start..i]);
+            start = i + 1;
         }
-
-        if !command_found {
-            command_list.push(token.to_string());
-            command_found = true;
-            continue;
-        }
-        args.push(token.to_string());
     }
-
-    args_list.push(args);
-
-    Ok(ParsedPipedCommands {
-        command_list,
-        args_list,
-        stdout: Box::new(io::stdout()), // TODO: implement stdout
-        stderr: Box::new(io::stderr()), // TODO: implement stderr
-        run_in_background: false, // TODO: implement run_in_background
-    })
+    segments.push(&tokens[start..]);
+    segments
 }
 
 fn create_fd(filepath: &str, appending: bool) -> Result<File, String> {

@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 use std::env;
-use std::io::Write;
+use std::io::{Write, pipe};
 use std::path::PathBuf;
-use std::process;
+use std::process::{self, Stdio};
 use std::rc::Rc;
 
 use crate::job::Job;
@@ -282,4 +282,36 @@ fn exec_external(
     if !stderr_str.is_empty() {
         let _ = write!(stderr, "{}", stderr_str);
     }
+}
+
+pub fn exec_external_pipelined(app_state: Rc<RefCell<AppState>>, segments: &[&[String]]) {
+    let app_state = app_state.borrow();
+    let cwd = app_state.cwd();
+
+    let seg1 = segments[0];
+    let seg2 = segments[1];
+
+    let cmd1 = &seg1[0].as_str();
+    let args1: Vec<&str> = seg1[1..].iter().map(|s| s.as_str()).collect();
+    let cmd2 = &seg2[0].as_str();
+    let args2: Vec<&str> = seg2[1..].iter().map(|s| s.as_str()).collect();
+
+    let (pipe_reader, pipe_writer) = pipe().expect("failed to create pipe");
+
+    let mut child1 = process::Command::new(cmd1)
+        .current_dir(cwd)
+        .args(&args1)
+        .stdout(Stdio::from(pipe_writer))
+        .spawn()
+        .expect("failed to spawn the first command");
+
+    let mut child2 = process::Command::new(cmd2)
+        .current_dir(cwd)
+        .args(&args2)
+        .stdin(Stdio::from(pipe_reader))
+        .spawn()
+        .expect("failed to spawn the second command");
+
+    let _ = child2.wait();
+    let _ = child1.wait();
 }

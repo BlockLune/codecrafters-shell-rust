@@ -42,6 +42,16 @@ pub fn tokenize(input: &str) -> Result<Vec<String>, String> {
                 }
                 TokenizerState::InSingleQuote | TokenizerState::InDoubleQuote => token.push(' '),
             },
+            '|' => match state {
+                TokenizerState::Normal => {
+                    if !token.is_empty() {
+                        tokens.push(token.clone());
+                        token.clear();
+                    }
+                    tokens.push("|".to_string());
+                }
+                _ => token.push('|'),
+            },
             other_ch => {
                 token.push(other_ch);
             }
