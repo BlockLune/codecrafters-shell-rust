@@ -1,9 +1,9 @@
 use std::cell::RefCell;
-use std::env;
 use std::io::{Write, pipe};
 use std::path::PathBuf;
 use std::process::{self, Stdio};
 use std::rc::Rc;
+use std::{env, io};
 
 use crate::job::Job;
 use crate::state::AppState;
@@ -285,8 +285,8 @@ fn exec_external(
 }
 
 pub fn exec_external_pipelined(app_state: Rc<RefCell<AppState>>, segments: &[&[String]]) {
-    let app_state = app_state.borrow();
-    let cwd = app_state.cwd();
+    let app_state_borrowed = app_state.borrow();
+    let cwd = app_state_borrowed.cwd();
 
     let seg1 = segments[0];
     let seg2 = segments[1];
@@ -298,20 +298,72 @@ pub fn exec_external_pipelined(app_state: Rc<RefCell<AppState>>, segments: &[&[S
 
     let (pipe_reader, pipe_writer) = pipe().expect("failed to create pipe");
 
-    let mut child1 = process::Command::new(cmd1)
-        .current_dir(cwd)
-        .args(&args1)
-        .stdout(Stdio::from(pipe_writer))
-        .spawn()
-        .expect("failed to spawn the first command");
+    if Command::is_builtin(cmd1) && Command::is_builtin(cmd2) {
+        // TODO: implement stdin for cmd2
+        Command::from_str(cmd1).exec(
+            Rc::clone(&app_state),
+            args1,
+            false,
+            Box::new(pipe_writer),
+            Box::new(io::stderr()),
+        );
+        Command::from_str(cmd2).exec(
+            Rc::clone(&app_state),
+            args2,
+            false,
+            Box::new(io::stdout()),
+            Box::new(io::stderr()),
+        );
+    } else if Command::is_builtin(cmd1) {
+        Command::from_str(cmd1).exec(
+            Rc::clone(&app_state),
+            args1,
+            false,
+            Box::new(pipe_writer),
+            Box::new(io::stderr()),
+        );
 
-    let mut child2 = process::Command::new(cmd2)
-        .current_dir(cwd)
-        .args(&args2)
-        .stdin(Stdio::from(pipe_reader))
-        .spawn()
-        .expect("failed to spawn the second command");
+        let mut child2 = process::Command::new(cmd2)
+            .current_dir(cwd)
+            .args(&args2)
+            .stdin(Stdio::from(pipe_reader))
+            .spawn()
+            .expect("failed to spawn the second command");
 
-    let _ = child2.wait();
-    let _ = child1.wait();
+        let _ = child2.wait();
+    } else if Command::is_builtin(cmd2) {
+        let mut child1 = process::Command::new(cmd1)
+            .current_dir(cwd)
+            .args(&args1)
+            .stdout(Stdio::from(pipe_writer))
+            .spawn()
+            .expect("failed to spawn the first command");
+
+        let _ = child1.wait();
+
+        Command::from_str(cmd2).exec(
+            Rc::clone(&app_state),
+            args2,
+            false,
+            Box::new(io::stdout()),
+            Box::new(io::stderr()),
+        );
+    } else {
+        let mut child1 = process::Command::new(cmd1)
+            .current_dir(cwd)
+            .args(&args1)
+            .stdout(Stdio::from(pipe_writer))
+            .spawn()
+            .expect("failed to spawn the first command");
+
+        let mut child2 = process::Command::new(cmd2)
+            .current_dir(cwd)
+            .args(&args2)
+            .stdin(Stdio::from(pipe_reader))
+            .spawn()
+            .expect("failed to spawn the second command");
+
+        let _ = child2.wait();
+        let _ = child1.wait();
+    }
 }
