@@ -9,6 +9,7 @@ use crate::state::AppState;
 
 pub const BUILTIN_COMMANDS: &[&str] = &["exit", "echo", "type", "pwd", "cd", "complete", "jobs"];
 
+#[allow(unused)]
 pub enum Command<'a> {
     BuiltinExit,
     BuiltinEcho,

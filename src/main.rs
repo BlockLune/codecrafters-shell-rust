@@ -2,6 +2,7 @@ use rustyline::config::Config;
 use rustyline::history::DefaultHistory;
 use rustyline::{Editor, error::ReadlineError};
 
+use std::process;
 use std::sync::{Arc, Mutex};
 
 mod command;
@@ -44,9 +45,36 @@ fn one_turn(
             let parsed_input = parser::parse_input(&tokens)?;
 
             if parsed_input.run_in_background {
-                // TODO: run in background
+                if parsed_input.commands.len() != 1 {
+                    eprintln!("background pipelines not yet supported");
+                    return Ok(());
+                }
+                let cmd = &parsed_input.commands[0];
+                if command::Command::is_builtin(cmd.name) {
+                    eprintln!("background execution of builtins not yet supported");
+                    return Ok(());
+                }
+
+                let name = cmd.name.to_string();
+                let args: Vec<String> = cmd.args.iter().map(|s| s.to_string()).collect();
+                let command_line = format!("{} {}", name, args.join(" "));
+
+                let mut state = app_state.lock().unwrap();
+                if !state.external_executables().contains_key(name.as_str()) {
+                    println!("{}: command not found", name);
+                    return Ok(());
+                }
+
+                let child = process::Command::new(&name)
+                    .current_dir(state.cwd())
+                    .args(&args)
+                    .spawn()
+                    .expect("failed to spawn");
+                let pid = child.id();
+                let job_number = state.add_background_job(&command_line, child);
+                println!("[{}] {}", job_number, pid);
             } else {
-                pipeline::exec_pipeline(app_state, parsed_input.commands);
+                pipeline::exec_pipeline(Arc::clone(&app_state), parsed_input.commands);
             }
 
             Ok(())
