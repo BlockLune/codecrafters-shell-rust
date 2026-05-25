@@ -154,8 +154,17 @@ impl Completer for ShellHelper {
 
             let args = vec![command, prefix, preceding_word];
 
-            match self.app_state.lock().unwrap().get_completer(command) {
-                Some(completer) => self.complete_with_completer(completer, args, line, pos),
+            let completer = self
+                .app_state
+                .lock()
+                .unwrap()
+                .get_completer(command)
+                .cloned();
+
+            match completer {
+                Some(ref completer) => {
+                    self.complete_with_completer(completer, args, line, pos)
+                }
                 None => self.complete_path(prefix),
             }
         };
