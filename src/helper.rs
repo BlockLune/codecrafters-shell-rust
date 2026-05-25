@@ -4,22 +4,21 @@ use rustyline::highlight::Highlighter;
 use rustyline::hint::Hinter;
 use rustyline::validate::Validator;
 
-use std::cell::RefCell;
 use std::fs;
 use std::path::PathBuf;
 use std::process;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 use crate::command;
 use crate::state::AppState;
 
 pub struct ShellHelper {
     commands: Vec<String>,
-    app_state: Rc<RefCell<AppState>>,
+    app_state: Arc<Mutex<AppState>>,
 }
 
 impl ShellHelper {
-    pub fn new(app_state: Rc<RefCell<AppState>>) -> Self {
+    pub fn new(app_state: Arc<Mutex<AppState>>) -> Self {
         // builtin commands
         let mut commands: Vec<String> = command::BUILTIN_COMMANDS
             .iter()
@@ -27,7 +26,14 @@ impl ShellHelper {
             .collect();
 
         // external commands
-        commands.extend(app_state.borrow().external_executables().keys().cloned());
+        commands.extend(
+            app_state
+                .lock()
+                .unwrap()
+                .external_executables()
+                .keys()
+                .cloned(),
+        );
 
         commands.sort();
         commands.dedup();
@@ -88,10 +94,9 @@ impl ShellHelper {
         comp_point: usize,
     ) -> Vec<Pair> {
         let mut ret = Vec::new();
-        let app_state = self.app_state.borrow();
 
         let Ok(output) = process::Command::new(completer)
-            .current_dir(app_state.cwd())
+            .current_dir(self.app_state.lock().unwrap().cwd())
             .args(args)
             .env("COMP_LINE", comp_line)
             .env("COMP_POINT", comp_point.to_string())
@@ -149,7 +154,7 @@ impl Completer for ShellHelper {
 
             let args = vec![command, prefix, preceding_word];
 
-            match self.app_state.borrow().get_completer(command) {
+            match self.app_state.lock().unwrap().get_completer(command) {
                 Some(completer) => self.complete_with_completer(completer, args, line, pos),
                 None => self.complete_path(prefix),
             }

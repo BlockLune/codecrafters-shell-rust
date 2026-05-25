@@ -2,8 +2,7 @@ use rustyline::config::Config;
 use rustyline::history::DefaultHistory;
 use rustyline::{Editor, error::ReadlineError};
 
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 mod command;
 mod helper;
@@ -11,15 +10,14 @@ mod job;
 mod parser;
 mod state;
 mod tokenizer;
+mod pipeline;
 
-use command::Command;
 use helper::ShellHelper;
-use parser::ParsedCommand;
 use state::AppState;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let app_state = Rc::new(RefCell::new(AppState::default()?));
-    let shell_helper = ShellHelper::new(Rc::clone(&app_state));
+    let app_state = Arc::new(Mutex::new(AppState::default()?));
+    let shell_helper = ShellHelper::new(Arc::clone(&app_state));
     let config = Config::builder()
         .completion_type(rustyline::CompletionType::List)
         .build();
@@ -28,42 +26,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // REPL (Read-Eval-Print Loop)
     loop {
-        if let Err(e) = one_turn(Rc::clone(&app_state), &mut rl) {
+        if let Err(e) = one_turn(Arc::clone(&app_state), &mut rl) {
             eprintln!("Error: {}", e);
         }
     }
 }
 
 fn one_turn(
-    app_state: Rc<RefCell<AppState>>,
+    app_state: Arc<Mutex<AppState>>,
     rl: &mut Editor<ShellHelper, DefaultHistory>,
 ) -> Result<(), String> {
-    app_state.borrow_mut().reap_done_jobs();
+    app_state.lock().unwrap().reap_done_jobs();
 
     match rl.readline("$ ") {
         Ok(input) => {
             let tokens = tokenizer::tokenize(&input)?;
-            let segments = parser::split_pipeline(&tokens);
+            let parsed_input = parser::parse_input(&tokens)?;
 
-            if segments.len() == 1 {
-                let ParsedCommand {
-                    command,
-                    args,
-                    stdout,
-                    stderr,
-                    run_in_background,
-                } = parser::parse_command(&tokens)?;
-
-                Command::from_str(command).exec(
-                    Rc::clone(&app_state),
-                    args,
-                    run_in_background,
-                    stdout,
-                    stderr,
-                );
+            if parsed_input.run_in_background {
+                // TODO: run in background
             } else {
-                command::exec_external_pipelined(app_state, &segments);
+                pipeline::exec_pipeline(app_state, parsed_input.commands);
             }
+
             Ok(())
         }
         Err(ReadlineError::Interrupted) => {

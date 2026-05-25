@@ -1,9 +1,8 @@
-use std::cell::RefCell;
-use std::io::{Write, pipe};
+use std::env;
+use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::process::{self, Stdio};
-use std::rc::Rc;
-use std::{env, io};
+use std::process;
+use std::sync::{Arc, Mutex};
 
 use crate::job::Job;
 use crate::state::AppState;
@@ -44,32 +43,31 @@ impl<'a> Command<'a> {
 
     pub fn exec(
         &self,
-        app_state: Rc<RefCell<AppState>>,
+        app_state: Arc<Mutex<AppState>>,
         args: Vec<&str>,
-        run_in_background: bool,
-        stdout: Box<dyn Write>,
-        stderr: Box<dyn Write>,
+        stdin: Box<dyn Read + Send>,
+        stdout: Box<dyn Write + Send>,
+        stderr: Box<dyn Write + Send>,
     ) {
         match self {
-            Self::BuiltinExit => exit_command(app_state, args, stdout, stderr),
-            Self::BuiltinEcho => echo_command(app_state, args, stdout, stderr),
-            Self::BuiltinType => type_command(app_state, args, stdout, stderr),
-            Self::BuiltinPwd => pwd_command(app_state, args, stdout, stderr),
-            Self::BuiltinCd => cd_command(app_state, args, stdout, stderr),
-            Self::BuiltinComplete => complete_command(app_state, args, stdout, stderr),
-            Self::BuiltinJobs => jobs_command(app_state, args, stdout, stderr),
-            Self::External(command) => {
-                exec_external(app_state, command, args, run_in_background, stdout, stderr)
-            }
+            Self::BuiltinExit => exit_command(app_state, args, stdin, stdout, stderr),
+            Self::BuiltinEcho => echo_command(app_state, args, stdin, stdout, stderr),
+            Self::BuiltinType => type_command(app_state, args, stdin, stdout, stderr),
+            Self::BuiltinPwd => pwd_command(app_state, args, stdin, stdout, stderr),
+            Self::BuiltinCd => cd_command(app_state, args, stdin, stdout, stderr),
+            Self::BuiltinComplete => complete_command(app_state, args, stdin, stdout, stderr),
+            Self::BuiltinJobs => jobs_command(app_state, args, stdin, stdout, stderr),
+            Self::External(_) => {}
         }
     }
 }
 
 fn exit_command(
-    _app_state: Rc<RefCell<AppState>>,
+    _app_state: Arc<Mutex<AppState>>,
     args: Vec<&str>,
-    mut stdout: Box<dyn Write>,
-    mut stderr: Box<dyn Write>,
+    mut _stdin: Box<dyn Read + Send>,
+    mut stdout: Box<dyn Write + Send>,
+    mut stderr: Box<dyn Write + Send>,
 ) {
     let _ = writeln!(stdout, "exit");
 
@@ -86,26 +84,28 @@ fn exit_command(
 }
 
 fn echo_command(
-    _app_state: Rc<RefCell<AppState>>,
+    _app_state: Arc<Mutex<AppState>>,
     args: Vec<&str>,
-    mut stdout: Box<dyn Write>,
-    mut _stderr: Box<dyn Write>,
+    mut _stdin: Box<dyn Read + Send>,
+    mut stdout: Box<dyn Write + Send>,
+    mut _stderr: Box<dyn Write + Send>,
 ) {
     let _ = writeln!(stdout, "{}", args.join(" "));
 }
 
 fn type_command(
-    app_state: Rc<RefCell<AppState>>,
+    app_state: Arc<Mutex<AppState>>,
     args: Vec<&str>,
-    mut stdout: Box<dyn Write>,
-    mut _stderr: Box<dyn Write>,
+    mut _stdin: Box<dyn Read + Send>,
+    mut stdout: Box<dyn Write + Send>,
+    mut _stderr: Box<dyn Write + Send>,
 ) {
     for command in args {
         if Command::is_builtin(command) {
             let _ = writeln!(stdout, "{} is a shell builtin", command);
         } else {
-            let app_state = app_state.borrow();
-            let executables = app_state.external_executables();
+            let app_state_locked = app_state.lock().unwrap();
+            let executables = app_state_locked.external_executables();
             if executables.contains_key(command) {
                 let _ = writeln!(
                     stdout,
@@ -121,21 +121,23 @@ fn type_command(
 }
 
 fn pwd_command(
-    app_state: Rc<RefCell<AppState>>,
+    app_state: Arc<Mutex<AppState>>,
     _args: Vec<&str>,
-    mut stdout: Box<dyn Write>,
-    mut _stderr: Box<dyn Write>,
+    mut _stdin: Box<dyn Read + Send>,
+    mut stdout: Box<dyn Write + Send>,
+    mut _stderr: Box<dyn Write + Send>,
 ) {
-    let app_state = app_state.borrow();
-    let path = app_state.cwd();
+    let app_state_locked = app_state.lock().unwrap();
+    let path = app_state_locked.cwd();
     let _ = writeln!(stdout, "{}", path.display());
 }
 
 fn cd_command(
-    app_state: Rc<RefCell<AppState>>,
+    app_state: Arc<Mutex<AppState>>,
     args: Vec<&str>,
-    mut _stdout: Box<dyn Write>,
-    mut stderr: Box<dyn Write>,
+    mut _stdin: Box<dyn Read + Send>,
+    mut _stdout: Box<dyn Write + Send>,
+    mut stderr: Box<dyn Write + Send>,
 ) {
     if args.len() > 1 {
         let _ = writeln!(stderr, "cd: too many arguments");
@@ -148,17 +150,18 @@ fn cd_command(
         PathBuf::from(args[0])
     };
 
-    let mut app_state = app_state.borrow_mut();
-    let _ = app_state
+    let mut app_state_locked = app_state.lock().unwrap();
+    let _ = app_state_locked
         .cd(path.clone())
         .map_err(|e| writeln!(stderr, "cd: {}: {}", path.display(), e));
 }
 
 fn complete_command(
-    app_state: Rc<RefCell<AppState>>,
+    app_state: Arc<Mutex<AppState>>,
     args: Vec<&str>,
-    mut stdout: Box<dyn Write>,
-    mut stderr: Box<dyn Write>,
+    mut _stdin: Box<dyn Read + Send>,
+    mut stdout: Box<dyn Write + Send>,
+    mut stderr: Box<dyn Write + Send>,
 ) {
     let mut print_flag = false;
     let mut unregister_flag = false;
@@ -188,9 +191,9 @@ fn complete_command(
     }
 
     for name in names {
+        let mut app_state_locked = app_state.lock().unwrap();
         if print_flag {
-            let app_state = app_state.borrow();
-            if let Some(completer_path) = app_state.get_completer(&name) {
+            if let Some(completer_path) = app_state_locked.get_completer(&name) {
                 let _ = writeln!(
                     stdout,
                     "complete -C '{}' {}",
@@ -201,27 +204,26 @@ fn complete_command(
                 let _ = writeln!(stderr, "complete: {}: no completion specification", name);
             }
         } else if unregister_flag {
-            let mut app_state = app_state.borrow_mut();
-            app_state.unregister_completion(name);
+            app_state_locked.unregister_completion(name);
         } else {
             // Or use: `if let Some(ref path) = completer_path`
             // where `ref` indicates: use borrow in pattern matching, instead of move
             if let Some(path) = completer_path.as_ref() {
-                let mut app_state = app_state.borrow_mut();
-                app_state.register_completion(name, path.clone());
+                app_state_locked.register_completion(name, path.clone());
             }
         }
     }
 }
 
 fn jobs_command(
-    app_state: Rc<RefCell<AppState>>,
+    app_state: Arc<Mutex<AppState>>,
     _args: Vec<&str>,
-    mut stdout: Box<dyn Write>,
-    mut _stderr: Box<dyn Write>,
+    mut _stdin: Box<dyn Read + Send>,
+    mut stdout: Box<dyn Write + Send>,
+    mut _stderr: Box<dyn Write + Send>,
 ) {
-    let mut app_state = app_state.borrow_mut();
-    let jobs = app_state.jobs();
+    let mut app_state_locked = app_state.lock().unwrap();
+    let jobs = app_state_locked.jobs();
     let statuses = Job::compute_job_status(jobs);
 
     for (job, entry) in jobs.iter_mut().zip(statuses.iter()) {
@@ -237,133 +239,4 @@ fn jobs_command(
     }
 
     jobs.retain(|job| !job.done);
-}
-
-fn exec_external(
-    app_state: Rc<RefCell<AppState>>,
-    command: &str,
-    args: Vec<&str>,
-    run_in_background: bool,
-    mut stdout: Box<dyn Write>,
-    mut stderr: Box<dyn Write>,
-) {
-    let mut app_state = app_state.borrow_mut();
-
-    if !app_state.external_executables().contains_key(command) {
-        let _ = writeln!(stdout, "{}: command not found", command);
-        return;
-    }
-
-    if run_in_background {
-        let child = process::Command::new(command)
-            .current_dir(app_state.cwd())
-            .args(args.clone())
-            .spawn()
-            .expect("failed to execute process");
-        let pid = child.id();
-        let job_number =
-            app_state.add_background_job(format!("{} {}", command, args.join(" ")).as_str(), child);
-        let _ = writeln!(stdout, "[{}] {}", job_number, pid);
-        return;
-    }
-
-    let output = process::Command::new(command)
-        .current_dir(app_state.cwd())
-        .args(args)
-        .output()
-        .expect("failed to execute process");
-
-    let stdout_str = String::from_utf8_lossy(&output.stdout);
-    if !stdout_str.is_empty() {
-        let _ = write!(stdout, "{}", stdout_str);
-    }
-
-    let stderr_str = String::from_utf8_lossy(&output.stderr);
-    if !stderr_str.is_empty() {
-        let _ = write!(stderr, "{}", stderr_str);
-    }
-}
-
-pub fn exec_external_pipelined(app_state: Rc<RefCell<AppState>>, segments: &[&[String]]) {
-    let app_state_borrowed = app_state.borrow();
-    let cwd = app_state_borrowed.cwd();
-
-    let seg1 = segments[0];
-    let seg2 = segments[1];
-
-    let cmd1 = &seg1[0].as_str();
-    let args1: Vec<&str> = seg1[1..].iter().map(|s| s.as_str()).collect();
-    let cmd2 = &seg2[0].as_str();
-    let args2: Vec<&str> = seg2[1..].iter().map(|s| s.as_str()).collect();
-
-    let (pipe_reader, pipe_writer) = pipe().expect("failed to create pipe");
-
-    if Command::is_builtin(cmd1) && Command::is_builtin(cmd2) {
-        // TODO: implement stdin for cmd2
-        Command::from_str(cmd1).exec(
-            Rc::clone(&app_state),
-            args1,
-            false,
-            Box::new(pipe_writer),
-            Box::new(io::stderr()),
-        );
-        Command::from_str(cmd2).exec(
-            Rc::clone(&app_state),
-            args2,
-            false,
-            Box::new(io::stdout()),
-            Box::new(io::stderr()),
-        );
-    } else if Command::is_builtin(cmd1) {
-        Command::from_str(cmd1).exec(
-            Rc::clone(&app_state),
-            args1,
-            false,
-            Box::new(pipe_writer),
-            Box::new(io::stderr()),
-        );
-
-        let mut child2 = process::Command::new(cmd2)
-            .current_dir(cwd)
-            .args(&args2)
-            .stdin(Stdio::from(pipe_reader))
-            .spawn()
-            .expect("failed to spawn the second command");
-
-        let _ = child2.wait();
-    } else if Command::is_builtin(cmd2) {
-        let mut child1 = process::Command::new(cmd1)
-            .current_dir(cwd)
-            .args(&args1)
-            .stdout(Stdio::from(pipe_writer))
-            .spawn()
-            .expect("failed to spawn the first command");
-
-        let _ = child1.wait();
-
-        Command::from_str(cmd2).exec(
-            Rc::clone(&app_state),
-            args2,
-            false,
-            Box::new(io::stdout()),
-            Box::new(io::stderr()),
-        );
-    } else {
-        let mut child1 = process::Command::new(cmd1)
-            .current_dir(cwd)
-            .args(&args1)
-            .stdout(Stdio::from(pipe_writer))
-            .spawn()
-            .expect("failed to spawn the first command");
-
-        let mut child2 = process::Command::new(cmd2)
-            .current_dir(cwd)
-            .args(&args2)
-            .stdin(Stdio::from(pipe_reader))
-            .spawn()
-            .expect("failed to spawn the second command");
-
-        let _ = child2.wait();
-        let _ = child1.wait();
-    }
 }
