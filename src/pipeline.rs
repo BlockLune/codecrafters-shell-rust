@@ -63,15 +63,19 @@ pub fn exec_pipeline(app_state: Arc<Mutex<AppState>>, commands: Vec<ParsedComman
                 None => Stdio::inherit(),
             };
 
-            let child = process::Command::new(command.name)
+            match process::Command::new(&command.name)
                 .current_dir(app_state.lock().unwrap().cwd())
                 .args(&command.args)
                 .stdin(stdin_cfg)
                 .stdout(stdout_cfg)
                 .stderr(stderr_cfg)
                 .spawn()
-                .expect("failed to spawn child");
-            children.push(child);
+            {
+                Ok(child) => children.push(child),
+                Err(_) => {
+                    eprintln!("{}: command not found", command.name);
+                }
+            }
         }
     }
 
