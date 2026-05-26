@@ -250,20 +250,26 @@ fn history_command(
     args: Vec<&str>,
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
-    mut _stderr: Box<dyn Write + Send>,
+    mut stderr: Box<dyn Write + Send>,
 ) {
-    let app_state_locked = app_state.lock().unwrap();
-    let history_entries: Vec<_> = app_state_locked.history().iter().collect();
-    let total = history_entries.len();
-    let mut n = history_entries.len();
+    let total = app_state.lock().unwrap().history().iter().len();
+    let mut n = total;
 
     if !args.is_empty() {
-        if let Ok(num) = args[0].parse::<usize>() {
+        if args[0] == "-r" {
+            if args.len() < 2 {
+                let _ = writeln!(stderr, "history: -r: option requires an argument");
+                return;
+            }
+            let history_file_path = args[1];
+            app_state.lock().unwrap().register_history_file_path(history_file_path);
+            return;
+        } else if let Ok(num) = args[0].parse::<usize>() {
             n = num;
         }
     }
 
-    for (i, history) in history_entries.iter().enumerate().skip(total - n) {
+    for (i, history) in app_state.lock().unwrap().history().iter().enumerate().skip(total - n) {
         let _ = writeln!(stdout, "   {}  {}", i + 1, history);
     }
 }

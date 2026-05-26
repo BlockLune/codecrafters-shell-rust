@@ -12,6 +12,7 @@ pub struct AppState {
     completers: HashMap<String, PathBuf>,
     background_jobs: Vec<Job>,
     history: Vec<String>,
+    history_file_path: Option<PathBuf>,
 }
 
 impl AppState {
@@ -29,6 +30,7 @@ impl AppState {
             completers,
             background_jobs,
             history,
+            history_file_path: None,
         })
     }
 
@@ -114,6 +116,10 @@ impl AppState {
 
     pub fn history(&self) -> &Vec<String> {
         &self.history
+    }
+
+    pub fn register_history_file_path(&mut self, path: &str) {
+        self.history_file_path = Some(PathBuf::from(path));
     }
 }
 
