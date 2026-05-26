@@ -263,7 +263,7 @@ fn history_command(
         }
     }
 
-    for (i, history) in history_entries.iter().skip(total - n).enumerate() {
+    for (i, history) in history_entries.iter().enumerate().skip(total - n) {
         let _ = writeln!(stdout, "   {}  {}", i + 1, history);
     }
 }
