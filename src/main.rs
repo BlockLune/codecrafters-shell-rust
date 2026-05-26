@@ -9,9 +9,9 @@ mod command;
 mod helper;
 mod job;
 mod parser;
+mod pipeline;
 mod state;
 mod tokenizer;
-mod pipeline;
 
 use helper::ShellHelper;
 use state::AppState;
@@ -41,6 +41,12 @@ fn one_turn(
 
     match rl.readline("$ ") {
         Ok(input) => {
+            let _ = rl.add_history_entry(input.as_str());
+            app_state
+                .lock()
+                .unwrap()
+                .set_history(rl.history().iter().map(|item| item.to_string()).collect());
+
             let tokens = tokenizer::tokenize(&input)?;
             let parsed_input = parser::parse_input(&tokens)?;
 

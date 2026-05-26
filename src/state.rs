@@ -11,6 +11,7 @@ pub struct AppState {
     external_executables: HashMap<String, PathBuf>,
     completers: HashMap<String, PathBuf>,
     background_jobs: Vec<Job>,
+    history: Vec<String>,
 }
 
 impl AppState {
@@ -20,12 +21,14 @@ impl AppState {
         let external_executables = build_executables();
         let completers = HashMap::new();
         let background_jobs = Vec::new();
+        let history = Vec::new();
 
         Ok(Self {
             cwd,
             external_executables,
             completers,
             background_jobs,
+            history,
         })
     }
 
@@ -103,6 +106,14 @@ impl AppState {
         }
 
         self.background_jobs.retain(|job| !job.done);
+    }
+
+    pub fn set_history(&mut self, history: Vec<String>) {
+        self.history = history;
+    }
+
+    pub fn history(&self) -> &Vec<String> {
+        &self.history
     }
 }
 

@@ -246,11 +246,13 @@ fn jobs_command(
 }
 
 fn history_command(
-    _app_state: Arc<Mutex<AppState>>,
+    app_state: Arc<Mutex<AppState>>,
     _args: Vec<&str>,
     mut _stdin: Box<dyn Read + Send>,
-    mut _stdout: Box<dyn Write + Send>,
+    mut stdout: Box<dyn Write + Send>,
     mut _stderr: Box<dyn Write + Send>,
 ) {
-    ()
+    for (i, history) in app_state.lock().unwrap().history().iter().enumerate() {
+        let _ = writeln!(stdout, "   {}  {}", i + 1, history);
+    }
 }
