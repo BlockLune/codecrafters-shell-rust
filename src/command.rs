@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use crate::job::Job;
 use crate::state::AppState;
 
-pub const BUILTIN_COMMANDS: &[&str] = &["exit", "echo", "type", "pwd", "cd", "complete", "jobs"];
+pub const BUILTIN_COMMANDS: &[&str] = &["exit", "echo", "type", "pwd", "cd", "complete", "jobs", "history"];
 
 #[allow(unused)]
 pub enum Command<'a> {
@@ -18,6 +18,7 @@ pub enum Command<'a> {
     BuiltinCd,
     BuiltinComplete,
     BuiltinJobs,
+    BuiltinHistory,
     External(&'a str),
 }
 
@@ -38,6 +39,7 @@ impl<'a> Command<'a> {
             "cd" => Self::BuiltinCd,
             "complete" => Self::BuiltinComplete,
             "jobs" => Self::BuiltinJobs,
+            "history" => Self::BuiltinHistory,
             external_command => Self::External(external_command),
         }
     }
@@ -58,6 +60,7 @@ impl<'a> Command<'a> {
             Self::BuiltinCd => cd_command(app_state, args, stdin, stdout, stderr),
             Self::BuiltinComplete => complete_command(app_state, args, stdin, stdout, stderr),
             Self::BuiltinJobs => jobs_command(app_state, args, stdin, stdout, stderr),
+            Self::BuiltinHistory => history_command(app_state, args, stdin, stdout, stderr),
             Self::External(_) => {}
         }
     }
@@ -240,4 +243,14 @@ fn jobs_command(
     }
 
     jobs.retain(|job| !job.done);
+}
+
+fn history_command(
+    _app_state: Arc<Mutex<AppState>>,
+    _args: Vec<&str>,
+    mut _stdin: Box<dyn Read + Send>,
+    mut _stdout: Box<dyn Write + Send>,
+    mut _stderr: Box<dyn Write + Send>,
+) {
+    ()
 }
