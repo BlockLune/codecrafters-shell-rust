@@ -1,6 +1,5 @@
 use std::env;
-use std::fs::{self, File};
-use std::io::{BufRead, BufReader, BufWriter, Read, Write};
+use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::process;
 
@@ -251,87 +250,25 @@ fn history_command(
     mut stdout: Box<dyn Write + Send>,
     mut stderr: Box<dyn Write + Send>,
 ) {
-    let total = ctx.editor().history().len();
+    let total = ctx.history().len();
     let mut n = total;
 
     if !args.is_empty() {
-        if args[0] == "-r" {
+        if args[0] == "-r" || args[0] == "-w" || args[0] == "-a" {
             if args.len() < 2 {
-                let _ = writeln!(stderr, "history: -r: option requires an argument");
+                let _ = writeln!(stderr, "history: {}: option requires an argument", args[0]);
                 return;
             }
-            let history_file_path = PathBuf::from(args[1]);
-            match File::open(&history_file_path) {
-                Ok(file) => {
-                    let reader = BufReader::new(file);
-                    for line in reader.lines() {
-                        if let Ok(line) = line {
-                            if !line.is_empty() {
-                                let _ = ctx.editor_mut().add_history_entry(&line);
-                            }
-                        }
-                    }
-                }
-                Err(_) => {
-                    let _ = writeln!(
-                        stderr,
-                        "history: -r: failed to load {}",
-                        history_file_path.display()
-                    );
-                }
-            }
-            return;
-        } else if args[0] == "-w" {
-            if args.len() < 2 {
-                let _ = writeln!(stderr, "history: -w: option requires an argument");
-                return;
-            }
-            let history_file_path = PathBuf::from(args[1]);
-            match File::create(&history_file_path) {
-                Ok(file) => {
-                    let mut writer = BufWriter::new(file);
-                    for entry in ctx.editor().history().iter() {
-                        let _ = writer.write_all(entry.as_bytes());
-                        let _ = writer.write_all(b"\n");
-                    }
-                }
-                Err(_) => {
-                    let _ = writeln!(
-                        stderr,
-                        "history: -w: failed to write {}",
-                        history_file_path.display()
-                    );
-                }
-            }
-            return;
-        } else if args[0] == "-a" {
-            if args.len() < 2 {
-                let _ = writeln!(stderr, "history: -a: option requires an argument");
-                return;
-            }
-            let history_file_path = PathBuf::from(args[1]);
-            let offset = ctx.history_write_offset();
-            let history_len = ctx.editor().history().len();
-            match File::options()
-                .append(true)
-                .create(true)
-                .open(&history_file_path)
-            {
-                Ok(file) => {
-                    let mut writer = BufWriter::new(file);
-                    for entry in ctx.editor().history().iter().skip(offset) {
-                        let _ = writer.write_all(entry.as_bytes());
-                        let _ = writer.write_all(b"\n");
-                    }
-                    ctx.set_history_write_offset(history_len);
-                }
-                Err(_) => {
-                    let _ = writeln!(
-                        stderr,
-                        "history: -a: failed to write {}",
-                        history_file_path.display()
-                    );
-                }
+            let file_path = PathBuf::from(args[1]);
+            let result = match args[0] {
+                "-r" => ctx.read_history_from_file(&file_path),
+                "-w" => ctx.write_history_to_file(&file_path, false),
+                "-a" => ctx.write_history_to_file(&file_path, true),
+                _ => unreachable!(),
+            };
+
+            if let Err(e) = result {
+                let _ = writeln!(stderr, "history: {}: {}", args[0], e);
             }
             return;
         } else if let Ok(num) = args[0].parse::<usize>() {
@@ -339,7 +276,7 @@ fn history_command(
         }
     }
 
-    for (i, history) in ctx.editor().history().iter().enumerate().skip(total - n) {
+    for (i, history) in ctx.history().iter().enumerate().skip(total - n) {
         let _ = writeln!(stdout, "   {}  {}", i + 1, history);
     }
 }

@@ -1,10 +1,11 @@
 use std::collections::{HashMap, HashSet};
 use std::env;
-use std::fs;
+use std::fs::{self, File};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::process;
 
-use rustyline::history::DefaultHistory;
+use rustyline::history::{DefaultHistory, FileHistory, History};
 use rustyline::{Editor, error::ReadlineError};
 
 use crate::command;
@@ -127,20 +128,44 @@ impl ShellContext {
         self.background_jobs.retain(|job| !job.done);
     }
 
-    pub fn editor(&self) -> &Editor<ShellHelper, DefaultHistory> {
-        &self.editor
+    pub fn history(&self) -> &FileHistory {
+        self.editor.history()
     }
 
-    pub fn editor_mut(&mut self) -> &mut Editor<ShellHelper, DefaultHistory> {
-        &mut self.editor
+    pub fn read_history_from_file(&mut self, path: &Path) -> Result<(), String> {
+        let file = File::open(&path).map_err(|e| e.to_string())?;
+        let reader = BufReader::new(file);
+        for line in reader.lines() {
+            if let Ok(line) = line {
+                if !line.is_empty() {
+                    self.editor
+                        .add_history_entry(&line)
+                        .map_err(|e| e.to_string())?;
+                }
+            }
+        }
+        Ok(())
     }
 
-    pub fn history_write_offset(&self) -> usize {
-        self.history_write_offset
-    }
+    pub fn write_history_to_file(&mut self, path: &Path, append: bool) -> Result<(), String> {
+        let offset = if append { self.history_write_offset } else { 0 };
 
-    pub fn set_history_write_offset(&mut self, offset: usize) {
-        self.history_write_offset = offset;
+        let file = File::options()
+            .append(append)
+            .create(true)
+            .open(&path)
+            .map_err(|e| e.to_string())?;
+        let mut writer = BufWriter::new(file);
+        for entry in self.editor.history().iter().skip(offset) {
+            let _ = writer.write_all(entry.as_bytes());
+            let _ = writer.write_all(b"\n");
+        }
+
+        if append {
+            self.history_write_offset = self.editor.history().len();
+        }
+
+        Ok(())
     }
 
     pub fn run(&mut self) {
