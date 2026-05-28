@@ -6,8 +6,8 @@ use std::process;
 
 use rustyline::history::History;
 
-use crate::job::Job;
 use crate::context::ShellContext;
+use crate::job::Job;
 
 pub const BUILTIN_COMMANDS: &[&str] = &[
     "exit", "echo", "type", "pwd", "cd", "complete", "jobs", "history",
@@ -304,18 +304,39 @@ fn history_command(
                 }
             }
             return;
+        } else if args[0] == "-a" {
+            if args.len() < 2 {
+                let _ = writeln!(stderr, "history: -a: option requires an argument");
+                return;
+            }
+            let history_file_path = PathBuf::from(args[1]);
+            match File::options()
+                .append(true)
+                .create(true)
+                .open(&history_file_path)
+            {
+                Ok(file) => {
+                    let mut writer = BufWriter::new(file);
+                    for entry in ctx.editor().history().iter() {
+                        let _ = writer.write_all(entry.as_bytes());
+                        let _ = writer.write_all(b"\n");
+                    }
+                }
+                Err(_) => {
+                    let _ = writeln!(
+                        stderr,
+                        "history: -a: failed to write {}",
+                        history_file_path.display()
+                    );
+                }
+            }
+            return;
         } else if let Ok(num) = args[0].parse::<usize>() {
             n = num;
         }
     }
 
-    for (i, history) in ctx
-        .editor()
-        .history()
-        .iter()
-        .enumerate()
-        .skip(total - n)
-    {
+    for (i, history) in ctx.editor().history().iter().enumerate().skip(total - n) {
         let _ = writeln!(stdout, "   {}  {}", i + 1, history);
     }
 }
