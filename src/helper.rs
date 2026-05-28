@@ -39,7 +39,7 @@ impl ShellHelper {
         }
     }
 
-    pub fn sync_from_app_state(&mut self, cwd: &Path, completers: &HashMap<String, PathBuf>) {
+    pub fn sync_from_context(&mut self, cwd: &Path, completers: &HashMap<String, PathBuf>) {
         self.cwd = Some(cwd.to_path_buf());
         self.completers = completers.clone();
     }

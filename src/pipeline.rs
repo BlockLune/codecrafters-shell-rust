@@ -4,9 +4,9 @@ use std::process::Stdio;
 
 use crate::command::Command;
 use crate::parser::ParsedCommand;
-use crate::state::AppState;
+use crate::context::ShellContext;
 
-pub fn exec_pipeline(app_state: &mut AppState, commands: Vec<ParsedCommand>) {
+pub fn exec_pipeline(ctx: &mut ShellContext, commands: Vec<ParsedCommand>) {
     let n = commands.len();
 
     let mut pipes: Vec<_> = (0..n - 1)
@@ -38,7 +38,7 @@ pub fn exec_pipeline(app_state: &mut AppState, commands: Vec<ParsedCommand>) {
             };
 
             // TODO: thread?
-            Command::from_str(command.name).exec(app_state, command.args, stdin, stdout, stderr);
+            Command::from_str(command.name).exec(ctx, command.args, stdin, stdout, stderr);
         } else {
             let stdin_cfg = match pipe_reader {
                 Some(r) => Stdio::from(r),
@@ -55,7 +55,7 @@ pub fn exec_pipeline(app_state: &mut AppState, commands: Vec<ParsedCommand>) {
             };
 
             match process::Command::new(&command.name)
-                .current_dir(app_state.cwd())
+                .current_dir(ctx.cwd())
                 .args(&command.args)
                 .stdin(stdin_cfg)
                 .stdout(stdout_cfg)

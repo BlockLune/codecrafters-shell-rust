@@ -14,7 +14,7 @@ use crate::parser;
 use crate::pipeline;
 use crate::tokenizer;
 
-pub struct AppState {
+pub struct ShellContext {
     cwd: PathBuf,
     external_executables: HashMap<String, PathBuf>,
     completers: HashMap<String, PathBuf>,
@@ -22,7 +22,7 @@ pub struct AppState {
     editor: Editor<ShellHelper, DefaultHistory>,
 }
 
-impl AppState {
+impl ShellContext {
     pub fn new() -> Result<Self, String> {
         let cwd =
             env::current_dir().map_err(|_| String::from("failed to get current directory"))?;
@@ -202,7 +202,7 @@ impl AppState {
 
     fn sync_helper(&mut self) {
         if let Some(helper) = self.editor.helper_mut() {
-            helper.sync_from_app_state(&self.cwd, &self.completers);
+            helper.sync_from_context(&self.cwd, &self.completers);
         }
     }
 }

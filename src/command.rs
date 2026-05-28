@@ -6,7 +6,7 @@ use std::process;
 use rustyline::history::History;
 
 use crate::job::Job;
-use crate::state::AppState;
+use crate::context::ShellContext;
 
 pub const BUILTIN_COMMANDS: &[&str] = &[
     "exit", "echo", "type", "pwd", "cd", "complete", "jobs", "history",
@@ -49,28 +49,28 @@ impl<'a> Command<'a> {
 
     pub fn exec(
         &self,
-        app_state: &mut AppState,
+        ctx: &mut ShellContext,
         args: Vec<&str>,
         stdin: Box<dyn Read + Send>,
         stdout: Box<dyn Write + Send>,
         stderr: Box<dyn Write + Send>,
     ) {
         match self {
-            Self::BuiltinExit => exit_command(app_state, args, stdin, stdout, stderr),
-            Self::BuiltinEcho => echo_command(app_state, args, stdin, stdout, stderr),
-            Self::BuiltinType => type_command(app_state, args, stdin, stdout, stderr),
-            Self::BuiltinPwd => pwd_command(app_state, args, stdin, stdout, stderr),
-            Self::BuiltinCd => cd_command(app_state, args, stdin, stdout, stderr),
-            Self::BuiltinComplete => complete_command(app_state, args, stdin, stdout, stderr),
-            Self::BuiltinJobs => jobs_command(app_state, args, stdin, stdout, stderr),
-            Self::BuiltinHistory => history_command(app_state, args, stdin, stdout, stderr),
+            Self::BuiltinExit => exit_command(ctx, args, stdin, stdout, stderr),
+            Self::BuiltinEcho => echo_command(ctx, args, stdin, stdout, stderr),
+            Self::BuiltinType => type_command(ctx, args, stdin, stdout, stderr),
+            Self::BuiltinPwd => pwd_command(ctx, args, stdin, stdout, stderr),
+            Self::BuiltinCd => cd_command(ctx, args, stdin, stdout, stderr),
+            Self::BuiltinComplete => complete_command(ctx, args, stdin, stdout, stderr),
+            Self::BuiltinJobs => jobs_command(ctx, args, stdin, stdout, stderr),
+            Self::BuiltinHistory => history_command(ctx, args, stdin, stdout, stderr),
             Self::External(_) => {}
         }
     }
 }
 
 fn exit_command(
-    _app_state: &mut AppState,
+    _ctx: &mut ShellContext,
     args: Vec<&str>,
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
@@ -91,7 +91,7 @@ fn exit_command(
 }
 
 fn echo_command(
-    _app_state: &mut AppState,
+    _ctx: &mut ShellContext,
     args: Vec<&str>,
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
@@ -101,7 +101,7 @@ fn echo_command(
 }
 
 fn type_command(
-    app_state: &mut AppState,
+    ctx: &mut ShellContext,
     args: Vec<&str>,
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
@@ -111,7 +111,7 @@ fn type_command(
         if Command::is_builtin(command) {
             let _ = writeln!(stdout, "{} is a shell builtin", command);
         } else {
-            let executables = app_state.external_executables();
+            let executables = ctx.external_executables();
             if executables.contains_key(command) {
                 let _ = writeln!(
                     stdout,
@@ -127,18 +127,18 @@ fn type_command(
 }
 
 fn pwd_command(
-    app_state: &mut AppState,
+    ctx: &mut ShellContext,
     _args: Vec<&str>,
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
     mut _stderr: Box<dyn Write + Send>,
 ) {
-    let path = app_state.cwd();
+    let path = ctx.cwd();
     let _ = writeln!(stdout, "{}", path.display());
 }
 
 fn cd_command(
-    app_state: &mut AppState,
+    ctx: &mut ShellContext,
     args: Vec<&str>,
     mut _stdin: Box<dyn Read + Send>,
     mut _stdout: Box<dyn Write + Send>,
@@ -155,13 +155,13 @@ fn cd_command(
         PathBuf::from(args[0])
     };
 
-    let _ = app_state
+    let _ = ctx
         .cd(path.clone())
         .map_err(|e| writeln!(stderr, "cd: {}: {}", path.display(), e));
 }
 
 fn complete_command(
-    app_state: &mut AppState,
+    ctx: &mut ShellContext,
     args: Vec<&str>,
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
@@ -196,7 +196,7 @@ fn complete_command(
 
     for name in names {
         if print_flag {
-            if let Some(completer_path) = app_state.get_completer(&name) {
+            if let Some(completer_path) = ctx.get_completer(&name) {
                 let _ = writeln!(
                     stdout,
                     "complete -C '{}' {}",
@@ -207,25 +207,25 @@ fn complete_command(
                 let _ = writeln!(stderr, "complete: {}: no completion specification", name);
             }
         } else if unregister_flag {
-            app_state.unregister_completer(name);
+            ctx.unregister_completer(name);
         } else {
             // Or use: `if let Some(ref path) = completer_path`
             // where `ref` indicates: use borrow in pattern matching, instead of move
             if let Some(path) = completer_path.as_ref() {
-                app_state.register_completer(name, path.clone());
+                ctx.register_completer(name, path.clone());
             }
         }
     }
 }
 
 fn jobs_command(
-    app_state: &mut AppState,
+    ctx: &mut ShellContext,
     _args: Vec<&str>,
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
     mut _stderr: Box<dyn Write + Send>,
 ) {
-    let jobs = app_state.jobs();
+    let jobs = ctx.jobs();
     let statuses = Job::compute_job_status(jobs);
 
     for (job, entry) in jobs.iter_mut().zip(statuses.iter()) {
@@ -244,13 +244,13 @@ fn jobs_command(
 }
 
 fn history_command(
-    app_state: &mut AppState,
+    ctx: &mut ShellContext,
     args: Vec<&str>,
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
     mut stderr: Box<dyn Write + Send>,
 ) {
-    let total = app_state.editor().history().len();
+    let total = ctx.editor().history().len();
     let mut n = total;
 
     if !args.is_empty() {
@@ -260,7 +260,7 @@ fn history_command(
                 return;
             }
             let history_file_path = PathBuf::from(args[1]);
-            if let Err(_) = app_state
+            if let Err(_) = ctx
                 .editor_mut()
                 .history_mut()
                 .load(&history_file_path)
@@ -277,7 +277,7 @@ fn history_command(
         }
     }
 
-    for (i, history) in app_state
+    for (i, history) in ctx
         .editor()
         .history()
         .iter()
