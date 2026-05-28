@@ -1,5 +1,6 @@
 use std::env;
-use std::io::{Read, Write};
+use std::fs::File;
+use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::path::PathBuf;
 use std::process;
 
@@ -260,16 +261,24 @@ fn history_command(
                 return;
             }
             let history_file_path = PathBuf::from(args[1]);
-            if let Err(_) = ctx
-                .editor_mut()
-                .history_mut()
-                .load(&history_file_path)
-            {
-                let _ = writeln!(
-                    stderr,
-                    "history: -r: failed to load {}",
-                    history_file_path.display()
-                );
+            match File::open(&history_file_path) {
+                Ok(file) => {
+                    let reader = BufReader::new(file);
+                    for line in reader.lines() {
+                        if let Ok(line) = line {
+                            if !line.is_empty() {
+                                let _ = ctx.editor_mut().add_history_entry(&line);
+                            }
+                        }
+                    }
+                }
+                Err(_) => {
+                    let _ = writeln!(
+                        stderr,
+                        "history: -r: failed to load {}",
+                        history_file_path.display()
+                    );
+                }
             }
             return;
         } else if args[0] == "-w" {
@@ -278,16 +287,21 @@ fn history_command(
                 return;
             }
             let history_file_path = PathBuf::from(args[1]);
-            if let Err(_) = ctx
-                .editor_mut()
-                .history_mut()
-                .save(&history_file_path)
-            {
-                let _ = writeln!(
-                    stderr,
-                    "history: -w: failed to load {}",
-                    history_file_path.display()
-                );
+            match File::create(&history_file_path) {
+                Ok(file) => {
+                    let mut writer = BufWriter::new(file);
+                    for entry in ctx.editor().history().iter() {
+                        let _ = writer.write_all(entry.as_bytes());
+                        let _ = writer.write_all(b"\n");
+                    }
+                }
+                Err(_) => {
+                    let _ = writeln!(
+                        stderr,
+                        "history: -w: failed to write {}",
+                        history_file_path.display()
+                    );
+                }
             }
             return;
         } else if let Ok(num) = args[0].parse::<usize>() {
