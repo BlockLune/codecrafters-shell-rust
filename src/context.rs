@@ -54,6 +54,7 @@ impl ShellContext {
         if let Ok(history_file_path) = env::var("HISTFILE") {
             ctx.read_history_from_file(&PathBuf::from(history_file_path))
                 .map_err(|e| e.to_string())?;
+            ctx.history_write_offset = ctx.editor.history().len();
         }
 
         Ok(ctx)
