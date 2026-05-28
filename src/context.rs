@@ -157,11 +157,20 @@ impl ShellContext {
     pub fn write_history_to_file(&mut self, path: &Path, append: bool) -> Result<(), String> {
         let offset = if append { self.history_write_offset } else { 0 };
 
-        let file = File::options()
-            .append(append)
-            .create(true)
-            .open(&path)
-            .map_err(|e| e.to_string())?;
+        let file = if append {
+            File::options()
+                .append(true)
+                .create(true)
+                .open(path)
+                .map_err(|e| e.to_string())?
+        } else {
+            File::options()
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .open(path)
+                .map_err(|e| e.to_string())?
+        };
         let mut writer = BufWriter::new(file);
         for entry in self.editor.history().iter().skip(offset) {
             let _ = writer.write_all(entry.as_bytes());
