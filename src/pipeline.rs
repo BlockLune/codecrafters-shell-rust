@@ -1,14 +1,12 @@
 use std::io::{self, Read, Write};
 use std::process;
 use std::process::Stdio;
-use std::sync::{Arc, Mutex};
-use std::thread;
 
 use crate::command::Command;
 use crate::parser::ParsedCommand;
 use crate::state::AppState;
 
-pub fn exec_pipeline(app_state: Arc<Mutex<AppState>>, commands: Vec<ParsedCommand>) {
+pub fn exec_pipeline(app_state: &mut AppState, commands: Vec<ParsedCommand>) {
     let n = commands.len();
 
     let mut pipes: Vec<_> = (0..n - 1)
@@ -18,7 +16,6 @@ pub fn exec_pipeline(app_state: Arc<Mutex<AppState>>, commands: Vec<ParsedComman
         })
         .collect();
 
-    let mut handles = Vec::new();
     let mut children = Vec::new();
 
     for (i, command) in commands.into_iter().enumerate() {
@@ -40,14 +37,8 @@ pub fn exec_pipeline(app_state: Arc<Mutex<AppState>>, commands: Vec<ParsedComman
                 None => Box::new(io::stderr()),
             };
 
-            let state = Arc::clone(&app_state);
-            let name = command.name.to_string();
-            let args: Vec<String> = command.args.into_iter().map(|s| s.to_string()).collect();
-
-            handles.push(thread::spawn(move || {
-                let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-                Command::from_str(&name).exec(state, args_ref, stdin, stdout, stderr);
-            }));
+            // TODO: thread?
+            Command::from_str(command.name).exec(app_state, command.args, stdin, stdout, stderr);
         } else {
             let stdin_cfg = match pipe_reader {
                 Some(r) => Stdio::from(r),
@@ -64,7 +55,7 @@ pub fn exec_pipeline(app_state: Arc<Mutex<AppState>>, commands: Vec<ParsedComman
             };
 
             match process::Command::new(&command.name)
-                .current_dir(app_state.lock().unwrap().cwd())
+                .current_dir(app_state.cwd())
                 .args(&command.args)
                 .stdin(stdin_cfg)
                 .stdout(stdout_cfg)
@@ -79,9 +70,6 @@ pub fn exec_pipeline(app_state: Arc<Mutex<AppState>>, commands: Vec<ParsedComman
         }
     }
 
-    for handle in handles {
-        let _ = handle.join();
-    }
     for mut child in children {
         let _ = child.wait();
     }

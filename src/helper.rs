@@ -4,43 +4,44 @@ use rustyline::highlight::Highlighter;
 use rustyline::hint::Hinter;
 use rustyline::validate::Validator;
 
+use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process;
-use std::sync::{Arc, Mutex};
 
 use crate::command;
-use crate::state::AppState;
 
 pub struct ShellHelper {
     commands: Vec<String>,
-    app_state: Arc<Mutex<AppState>>,
+    cwd: Option<PathBuf>,
+    completers: HashMap<String, PathBuf>,
 }
 
 impl ShellHelper {
-    pub fn new(app_state: Arc<Mutex<AppState>>) -> Self {
+    pub fn new<I>(external_commands: I, cwd: &Path, completers: &HashMap<String, PathBuf>) -> Self
+    where I: IntoIterator<Item = String>
+    {
         // builtin commands
         let mut commands: Vec<String> = command::BUILTIN_COMMANDS
             .iter()
             .map(|v| v.to_string())
             .collect();
-
         // external commands
-        commands.extend(
-            app_state
-                .lock()
-                .unwrap()
-                .external_executables()
-                .keys()
-                .cloned(),
-        );
+        commands.extend(external_commands);
 
         commands.sort();
         commands.dedup();
-        ShellHelper {
+
+        Self {
             commands,
-            app_state,
+            cwd: Some(cwd.to_path_buf()),
+            completers: completers.clone(),
         }
+    }
+
+    pub fn sync_from_app_state(&mut self, cwd: &Path, completers: &HashMap<String, PathBuf>) {
+        self.cwd = Some(cwd.to_path_buf());
+        self.completers = completers.clone();
     }
 
     fn complete_command(&self, prefix: &str) -> Vec<Pair> {
@@ -95,8 +96,12 @@ impl ShellHelper {
     ) -> Vec<Pair> {
         let mut ret = Vec::new();
 
+        if self.cwd.is_none() {
+            return ret;
+        }
+
         let Ok(output) = process::Command::new(completer)
-            .current_dir(self.app_state.lock().unwrap().cwd())
+            .current_dir(self.cwd.clone().unwrap())
             .args(args)
             .env("COMP_LINE", comp_line)
             .env("COMP_POINT", comp_point.to_string())
@@ -154,17 +159,8 @@ impl Completer for ShellHelper {
 
             let args = vec![command, prefix, preceding_word];
 
-            let completer = self
-                .app_state
-                .lock()
-                .unwrap()
-                .get_completer(command)
-                .cloned();
-
-            match completer {
-                Some(ref completer) => {
-                    self.complete_with_completer(completer, args, line, pos)
-                }
+            match self.completers.get(command) {
+                Some(ref completer) => self.complete_with_completer(completer, args, line, pos),
                 None => self.complete_path(prefix),
             }
         };

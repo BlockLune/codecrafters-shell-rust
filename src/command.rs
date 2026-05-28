@@ -2,12 +2,15 @@ use std::env;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::process;
-use std::sync::{Arc, Mutex};
+
+use rustyline::history::History;
 
 use crate::job::Job;
 use crate::state::AppState;
 
-pub const BUILTIN_COMMANDS: &[&str] = &["exit", "echo", "type", "pwd", "cd", "complete", "jobs", "history"];
+pub const BUILTIN_COMMANDS: &[&str] = &[
+    "exit", "echo", "type", "pwd", "cd", "complete", "jobs", "history",
+];
 
 #[allow(unused)]
 pub enum Command<'a> {
@@ -46,7 +49,7 @@ impl<'a> Command<'a> {
 
     pub fn exec(
         &self,
-        app_state: Arc<Mutex<AppState>>,
+        app_state: &mut AppState,
         args: Vec<&str>,
         stdin: Box<dyn Read + Send>,
         stdout: Box<dyn Write + Send>,
@@ -67,7 +70,7 @@ impl<'a> Command<'a> {
 }
 
 fn exit_command(
-    _app_state: Arc<Mutex<AppState>>,
+    _app_state: &mut AppState,
     args: Vec<&str>,
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
@@ -88,7 +91,7 @@ fn exit_command(
 }
 
 fn echo_command(
-    _app_state: Arc<Mutex<AppState>>,
+    _app_state: &mut AppState,
     args: Vec<&str>,
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
@@ -98,7 +101,7 @@ fn echo_command(
 }
 
 fn type_command(
-    app_state: Arc<Mutex<AppState>>,
+    app_state: &mut AppState,
     args: Vec<&str>,
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
@@ -108,8 +111,7 @@ fn type_command(
         if Command::is_builtin(command) {
             let _ = writeln!(stdout, "{} is a shell builtin", command);
         } else {
-            let app_state_locked = app_state.lock().unwrap();
-            let executables = app_state_locked.external_executables();
+            let executables = app_state.external_executables();
             if executables.contains_key(command) {
                 let _ = writeln!(
                     stdout,
@@ -125,19 +127,18 @@ fn type_command(
 }
 
 fn pwd_command(
-    app_state: Arc<Mutex<AppState>>,
+    app_state: &mut AppState,
     _args: Vec<&str>,
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
     mut _stderr: Box<dyn Write + Send>,
 ) {
-    let app_state_locked = app_state.lock().unwrap();
-    let path = app_state_locked.cwd();
+    let path = app_state.cwd();
     let _ = writeln!(stdout, "{}", path.display());
 }
 
 fn cd_command(
-    app_state: Arc<Mutex<AppState>>,
+    app_state: &mut AppState,
     args: Vec<&str>,
     mut _stdin: Box<dyn Read + Send>,
     mut _stdout: Box<dyn Write + Send>,
@@ -154,14 +155,13 @@ fn cd_command(
         PathBuf::from(args[0])
     };
 
-    let mut app_state_locked = app_state.lock().unwrap();
-    let _ = app_state_locked
+    let _ = app_state
         .cd(path.clone())
         .map_err(|e| writeln!(stderr, "cd: {}: {}", path.display(), e));
 }
 
 fn complete_command(
-    app_state: Arc<Mutex<AppState>>,
+    app_state: &mut AppState,
     args: Vec<&str>,
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
@@ -195,9 +195,8 @@ fn complete_command(
     }
 
     for name in names {
-        let mut app_state_locked = app_state.lock().unwrap();
         if print_flag {
-            if let Some(completer_path) = app_state_locked.get_completer(&name) {
+            if let Some(completer_path) = app_state.get_completer(&name) {
                 let _ = writeln!(
                     stdout,
                     "complete -C '{}' {}",
@@ -208,26 +207,25 @@ fn complete_command(
                 let _ = writeln!(stderr, "complete: {}: no completion specification", name);
             }
         } else if unregister_flag {
-            app_state_locked.unregister_completion(name);
+            app_state.unregister_completer(name);
         } else {
             // Or use: `if let Some(ref path) = completer_path`
             // where `ref` indicates: use borrow in pattern matching, instead of move
             if let Some(path) = completer_path.as_ref() {
-                app_state_locked.register_completion(name, path.clone());
+                app_state.register_completer(name, path.clone());
             }
         }
     }
 }
 
 fn jobs_command(
-    app_state: Arc<Mutex<AppState>>,
+    app_state: &mut AppState,
     _args: Vec<&str>,
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
     mut _stderr: Box<dyn Write + Send>,
 ) {
-    let mut app_state_locked = app_state.lock().unwrap();
-    let jobs = app_state_locked.jobs();
+    let jobs = app_state.jobs();
     let statuses = Job::compute_job_status(jobs);
 
     for (job, entry) in jobs.iter_mut().zip(statuses.iter()) {
@@ -246,13 +244,13 @@ fn jobs_command(
 }
 
 fn history_command(
-    app_state: Arc<Mutex<AppState>>,
+    app_state: &mut AppState,
     args: Vec<&str>,
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
     mut stderr: Box<dyn Write + Send>,
 ) {
-    let total = app_state.lock().unwrap().history().iter().len();
+    let total = app_state.editor().history().len();
     let mut n = total;
 
     if !args.is_empty() {
@@ -261,15 +259,31 @@ fn history_command(
                 let _ = writeln!(stderr, "history: -r: option requires an argument");
                 return;
             }
-            let history_file_path = args[1];
-            app_state.lock().unwrap().register_history_file_path(history_file_path);
+            let history_file_path = PathBuf::from(args[1]);
+            if let Err(_) = app_state
+                .editor_mut()
+                .history_mut()
+                .load(&history_file_path)
+            {
+                let _ = writeln!(
+                    stderr,
+                    "history: -r: failed to load {}",
+                    history_file_path.display()
+                );
+            }
             return;
         } else if let Ok(num) = args[0].parse::<usize>() {
             n = num;
         }
     }
 
-    for (i, history) in app_state.lock().unwrap().history().iter().enumerate().skip(total - n) {
+    for (i, history) in app_state
+        .editor()
+        .history()
+        .iter()
+        .enumerate()
+        .skip(total - n)
+    {
         let _ = writeln!(stdout, "   {}  {}", i + 1, history);
     }
 }
