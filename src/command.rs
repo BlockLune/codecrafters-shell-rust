@@ -70,7 +70,7 @@ impl<'a> Command<'a> {
 }
 
 fn exit_command(
-    _ctx: &mut ShellContext,
+    ctx: &mut ShellContext,
     args: Vec<&str>,
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
@@ -78,14 +78,34 @@ fn exit_command(
 ) {
     let _ = writeln!(stdout, "exit");
 
+    let write_history_on_exit = |ctx: &mut ShellContext| {
+        if let Ok(history_file_path) = env::var("HISTFILE") {
+            ctx.write_history_to_file(&PathBuf::from(history_file_path), true)
+        } else {
+            Ok(())
+        }
+    };
+
     if args.is_empty() {
-        process::exit(0);
+        match write_history_on_exit(ctx) {
+            Ok(_) => process::exit(0),
+            Err(e) => {
+                let _ = writeln!(stderr, "{}", e);
+            }
+        }
     } else if args.len() >= 2 {
         let _ = writeln!(stderr, "exit: too many arguments");
     } else {
         let _ = match args[0].parse::<i32>() {
-            Ok(ret) => process::exit(ret),
-            Err(_) => writeln!(stderr, "exit: {}: numeric argument required", args[0]),
+            Ok(ret) => match write_history_on_exit(ctx) {
+                Ok(_) => process::exit(ret),
+                Err(e) => {
+                    let _ = writeln!(stderr, "{}", e);
+                }
+            },
+            Err(_) => {
+                let _ = writeln!(stderr, "exit: {}: numeric argument required", args[0]);
+            }
         };
     }
 }
