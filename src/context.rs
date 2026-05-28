@@ -20,6 +20,7 @@ pub struct ShellContext {
     completers: HashMap<String, PathBuf>,
     background_jobs: Vec<Job>,
     editor: Editor<ShellHelper, DefaultHistory>,
+    history_write_offset: usize,
 }
 
 impl ShellContext {
@@ -46,6 +47,7 @@ impl ShellContext {
             completers,
             background_jobs,
             editor,
+            history_write_offset: 0,
         })
     }
 
@@ -131,6 +133,14 @@ impl ShellContext {
 
     pub fn editor_mut(&mut self) -> &mut Editor<ShellHelper, DefaultHistory> {
         &mut self.editor
+    }
+
+    pub fn history_write_offset(&self) -> usize {
+        self.history_write_offset
+    }
+
+    pub fn set_history_write_offset(&mut self, offset: usize) {
+        self.history_write_offset = offset;
     }
 
     pub fn run(&mut self) {

@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::env;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
@@ -311,6 +310,8 @@ fn history_command(
                 return;
             }
             let history_file_path = PathBuf::from(args[1]);
+            let offset = ctx.history_write_offset();
+            let history_len = ctx.editor().history().len();
             match File::options()
                 .append(true)
                 .create(true)
@@ -318,19 +319,11 @@ fn history_command(
             {
                 Ok(file) => {
                     let mut writer = BufWriter::new(file);
-                    let existing_history: HashSet<String> =
-                        if let Ok(content) = fs::read_to_string(&history_file_path) {
-                            content.lines().map(String::from).collect()
-                        } else {
-                            HashSet::new()
-                        };
-
-                    for entry in ctx.editor().history().iter() {
-                        if !existing_history.contains(entry) {
-                            let _ = writer.write_all(entry.as_bytes());
-                            let _ = writer.write_all(b"\n");
-                        }
+                    for entry in ctx.editor().history().iter().skip(offset) {
+                        let _ = writer.write_all(entry.as_bytes());
+                        let _ = writer.write_all(b"\n");
                     }
+                    ctx.set_history_write_offset(history_len);
                 }
                 Err(_) => {
                     let _ = writeln!(
