@@ -272,6 +272,24 @@ fn history_command(
                 );
             }
             return;
+        } else if args[0] == "-w" {
+            if args.len() < 2 {
+                let _ = writeln!(stderr, "history: -w: option requires an argument");
+                return;
+            }
+            let history_file_path = PathBuf::from(args[1]);
+            if let Err(_) = ctx
+                .editor_mut()
+                .history_mut()
+                .save(&history_file_path)
+            {
+                let _ = writeln!(
+                    stderr,
+                    "history: -w: failed to load {}",
+                    history_file_path.display()
+                );
+            }
+            return;
         } else if let Ok(num) = args[0].parse::<usize>() {
             n = num;
         }
