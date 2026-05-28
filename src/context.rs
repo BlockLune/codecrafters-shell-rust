@@ -42,14 +42,21 @@ impl ShellContext {
         let helper = ShellHelper::new(external_executables.keys().cloned(), &cwd, &completers);
         editor.set_helper(Some(helper));
 
-        Ok(Self {
+        let mut ctx = Self {
             cwd,
             external_executables,
             completers,
             background_jobs,
             editor,
             history_write_offset: 0,
-        })
+        };
+
+        if let Ok(history_file_path) = env::var("HISTFILE") {
+            ctx.read_history_from_file(&PathBuf::from(history_file_path))
+                .map_err(|e| e.to_string())?;
+        }
+
+        Ok(ctx)
     }
 
     pub fn cwd(&self) -> &Path {
