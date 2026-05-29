@@ -223,7 +223,54 @@ impl ShellContext {
         let mut parsed_input = parser::parse_input(&tokens)?;
 
         for command in &mut parsed_input.commands {
-            command.args = self.expand_args(&command.args);
+            for arg in &mut command.args {
+                let mut result = String::with_capacity(arg.len());
+                let mut chars = arg.chars().peekable();
+
+                while let Some(ch) = chars.next() {
+                    if ch != '$' {
+                        result.push(ch);
+                        continue;
+                    }
+
+                    if chars.peek() == Some(&'{') {
+                        chars.next();
+                        let mut var_name = String::new();
+                        loop {
+                            match chars.next() {
+                                Some('}') => {
+                                    break;
+                                }
+                                Some(ch) => {
+                                    var_name.push(ch);
+                                }
+                                None => {
+                                    break;
+                                }
+                            }
+                        }
+                        if let Some(var_value) = self.get_shell_variable_value(&var_name) {
+                            result.push_str(var_value);
+                        }
+                        continue;
+                    }
+
+                    let mut var_name = String::new();
+                    while let Some(ch) = chars.next() {
+                        if ch.is_whitespace() {
+                            break;
+                        }
+                        var_name.push(ch);
+                    }
+                    if var_name.is_empty() {
+                        result.push('$');
+                    } else if let Some(value) = self.get_shell_variable_value(&var_name) {
+                        result.push_str(value);
+                    }
+                }
+
+                *arg = result;
+            }
         }
 
         if parsed_input.run_in_background {
@@ -272,24 +319,6 @@ impl ShellContext {
 
     pub fn get_shell_variable_value(&self, name: &str) -> Option<&String> {
         self.shell_variables.get(name)
-    }
-
-    fn expand_args(&self, args: &[String]) -> Vec<String> {
-        let mut expanded_args = Vec::new();
-
-        for arg in args {
-            let mut expanded = arg.to_string();
-            for (var_name, var_value) in &self.shell_variables {
-                let pat = format!("${}", var_name);
-                expanded = expanded.replace(&pat, var_value);
-
-                let pat = format!("${{{}}}", var_name);
-                expanded = expanded.replace(&pat, var_value);
-            }
-            expanded_args.push(expanded);
-        }
-
-        expanded_args
     }
 }
 
