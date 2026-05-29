@@ -38,7 +38,7 @@ pub fn exec_pipeline(ctx: &mut ShellContext, commands: Vec<ParsedCommand>) {
             };
 
             // TODO: thread?
-            Command::from_str(command.name).exec(ctx, command.args, stdin, stdout, stderr);
+            Command::from_str(&command.name).exec(ctx, command.args, stdin, stdout, stderr);
         } else {
             let stdin_cfg = match pipe_reader {
                 Some(r) => Stdio::from(r),

@@ -1,20 +1,20 @@
 use std::fs::File;
 
-pub struct ParsedInput<'a> {
-    pub commands: Vec<ParsedCommand<'a>>,
+pub struct ParsedInput {
+    pub commands: Vec<ParsedCommand>,
     pub run_in_background: bool,
 }
 
-pub struct ParsedCommand<'a> {
-    pub name: &'a str,
-    pub args: Vec<&'a str>,
+pub struct ParsedCommand {
+    pub name: String,
+    pub args: Vec<String>,
     pub stdout_redirect: Option<File>,
     pub stderr_redirect: Option<File>,
 }
 
-pub fn parse_input<'a>(tokens: &'a [String]) -> Result<ParsedInput<'a>, String> {
+pub fn parse_input(tokens: &[String]) -> Result<ParsedInput, String> {
     let (tokens, run_in_background) = strip_background_flag(tokens);
-    let commands: Vec<ParsedCommand<'a>> = split_pipeline(tokens)
+    let commands: Vec<ParsedCommand> = split_pipeline(tokens)
         .iter()
         .map(|&command_tokens| parse_command(command_tokens))
         .collect::<Result<Vec<_>, _>>()?;
@@ -52,15 +52,15 @@ fn split_pipeline<'a>(tokens: &'a [String]) -> Vec<&'a [String]> {
     commands
 }
 
-fn parse_command<'a>(tokens: &'a [String]) -> Result<ParsedCommand<'a>, String> {
-    let command: &str = tokens.first().unwrap().as_str();
-    let mut args: Vec<&str> = tokens[1..tokens.len()].iter().map(|s| s.as_str()).collect();
+fn parse_command(tokens: &[String]) -> Result<ParsedCommand, String> {
+    let command: String = tokens.first().unwrap().to_string();
+    let mut args: Vec<String> = tokens[1..tokens.len()].iter().map(|s| s.to_string()).collect();
     let mut stdout_redirect = None;
     let mut stderr_redirect = None;
 
     let mut i = 0;
     while i < args.len() {
-        let token = args[i];
+        let token = &args[i];
         if token == ">"
             || token == "1>"
             || token == "2>"
@@ -71,8 +71,8 @@ fn parse_command<'a>(tokens: &'a [String]) -> Result<ParsedCommand<'a>, String> 
             if i + 1 >= args.len() {
                 return Err(String::from("no redirection target"));
             }
-            let filepath = args[i + 1];
-            match token {
+            let filepath = &args[i + 1];
+            match token.as_str() {
                 ">" | "1>" => stdout_redirect = Some(create_fd(filepath, false)?),
                 "2>" => stderr_redirect = Some(create_fd(filepath, false)?),
                 ">>" | "1>>" => stdout_redirect = Some(create_fd(filepath, true)?),

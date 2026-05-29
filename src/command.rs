@@ -52,7 +52,7 @@ impl<'a> Command<'a> {
     pub fn exec(
         &self,
         ctx: &mut ShellContext,
-        args: Vec<&str>,
+        args: Vec<String>,
         stdin: Box<dyn Read + Send>,
         stdout: Box<dyn Write + Send>,
         stderr: Box<dyn Write + Send>,
@@ -74,7 +74,7 @@ impl<'a> Command<'a> {
 
 fn exit_command(
     ctx: &mut ShellContext,
-    args: Vec<&str>,
+    args: Vec<String>,
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
     mut stderr: Box<dyn Write + Send>,
@@ -115,7 +115,7 @@ fn exit_command(
 
 fn echo_command(
     _ctx: &mut ShellContext,
-    args: Vec<&str>,
+    args: Vec<String>,
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
     mut _stderr: Box<dyn Write + Send>,
@@ -125,22 +125,22 @@ fn echo_command(
 
 fn type_command(
     ctx: &mut ShellContext,
-    args: Vec<&str>,
+    args: Vec<String>,
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
     mut _stderr: Box<dyn Write + Send>,
 ) {
-    for command in args {
+    for command in &args {
         if Command::is_builtin(command) {
             let _ = writeln!(stdout, "{} is a shell builtin", command);
         } else {
             let executables = ctx.external_executables();
-            if executables.contains_key(command) {
+            if executables.contains_key(command.as_str()) {
                 let _ = writeln!(
                     stdout,
                     "{} is {}",
                     command,
-                    executables.get(command).unwrap().display()
+                    executables.get(command.as_str()).unwrap().display()
                 );
             } else {
                 let _ = writeln!(stdout, "{}: not found", command);
@@ -151,7 +151,7 @@ fn type_command(
 
 fn pwd_command(
     ctx: &mut ShellContext,
-    _args: Vec<&str>,
+    _args: Vec<String>,
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
     mut _stderr: Box<dyn Write + Send>,
@@ -162,7 +162,7 @@ fn pwd_command(
 
 fn cd_command(
     ctx: &mut ShellContext,
-    args: Vec<&str>,
+    args: Vec<String>,
     mut _stdin: Box<dyn Read + Send>,
     mut _stdout: Box<dyn Write + Send>,
     mut stderr: Box<dyn Write + Send>,
@@ -172,10 +172,10 @@ fn cd_command(
         return;
     }
 
-    let path = if args.len() == 0 || args[0] == "~" {
+    let path = if args.is_empty() || args[0] == "~" {
         PathBuf::from(env::var("HOME").unwrap())
     } else {
-        PathBuf::from(args[0])
+        PathBuf::from(&args[0])
     };
 
     let _ = ctx
@@ -185,7 +185,7 @@ fn cd_command(
 
 fn complete_command(
     ctx: &mut ShellContext,
-    args: Vec<&str>,
+    args: Vec<String>,
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
     mut stderr: Box<dyn Write + Send>,
@@ -197,7 +197,7 @@ fn complete_command(
 
     let mut i = 0;
     while i < args.len() {
-        let arg = args[i];
+        let arg = &args[i];
         if arg == "-p" {
             print_flag = true;
         } else if arg == "-C" {
@@ -205,13 +205,13 @@ fn complete_command(
                 let _ = writeln!(stderr, "complete: -C: option requires an argument");
                 return;
             }
-            completer_path = Some(PathBuf::from(args[i + 1]));
+            completer_path = Some(PathBuf::from(&args[i + 1]));
 
             i += 1;
         } else if arg == "-r" {
             unregister_flag = true;
         } else {
-            names.push(arg.to_string());
+            names.push(arg.clone());
         }
 
         i += 1;
@@ -243,7 +243,7 @@ fn complete_command(
 
 fn jobs_command(
     ctx: &mut ShellContext,
-    _args: Vec<&str>,
+    _args: Vec<String>,
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
     mut _stderr: Box<dyn Write + Send>,
@@ -268,7 +268,7 @@ fn jobs_command(
 
 fn history_command(
     ctx: &mut ShellContext,
-    args: Vec<&str>,
+    args: Vec<String>,
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
     mut stderr: Box<dyn Write + Send>,
@@ -282,8 +282,8 @@ fn history_command(
                 let _ = writeln!(stderr, "history: {}: option requires an argument", args[0]);
                 return;
             }
-            let file_path = PathBuf::from(args[1]);
-            let result = match args[0] {
+            let file_path = PathBuf::from(&args[1]);
+            let result = match args[0].as_str() {
                 "-r" => ctx.read_history_from_file(&file_path),
                 "-w" => ctx.write_history_to_file(&file_path, false),
                 "-a" => ctx.write_history_to_file(&file_path, true),
@@ -306,7 +306,7 @@ fn history_command(
 
 fn declare_command(
     ctx: &mut ShellContext,
-    args: Vec<&str>,
+    args: Vec<String>,
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
     mut stderr: Box<dyn Write + Send>,
@@ -317,7 +317,7 @@ fn declare_command(
                 let _ = writeln!(stderr, "declare: {}: option requires an argument", args[0]);
                 return;
             }
-            let var_name = args[1].to_string();
+            let var_name = args[1].clone();
             match ctx.get_shell_variable_value(&var_name) {
                 Some(var_value) => {
                     let _ = writeln!(stdout, "declare -- {}=\"{}\"", var_name, var_value);
@@ -329,7 +329,7 @@ fn declare_command(
             return;
         }
 
-        let variable = args[0].split("=").collect::<Vec<_>>();
+        let variable: Vec<&str> = args[0].split('=').collect();
         let var_name = variable[0].to_string();
         let var_value = variable[1].to_string();
 

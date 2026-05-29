@@ -218,7 +218,11 @@ impl ShellContext {
         let _ = self.editor.add_history_entry(line.as_str());
 
         let tokens = tokenizer::tokenize(&line)?;
-        let parsed_input = parser::parse_input(&tokens)?;
+        let mut parsed_input = parser::parse_input(&tokens)?;
+
+        for command in &mut parsed_input.commands {
+            command.args = self.expand_args(&command.args);
+        }
 
         if parsed_input.run_in_background {
             if parsed_input.commands.len() != 1 {
@@ -226,23 +230,22 @@ impl ShellContext {
                 return Ok(());
             }
             let cmd = &parsed_input.commands[0];
-            if command::Command::is_builtin(cmd.name) {
+            if command::Command::is_builtin(&cmd.name) {
                 eprintln!("background execution of builtins not yet supported");
                 return Ok(());
             }
 
-            let name = cmd.name.to_string();
-            let args: Vec<String> = cmd.args.iter().map(|s| s.to_string()).collect();
-            let command_line = format!("{} {}", name, args.join(" "));
+            let name = &cmd.name;
+            let command_line = format!("{} {}", name, cmd.args.join(" "));
 
             if !self.external_executables.contains_key(name.as_str()) {
                 println!("{}: command not found", name);
                 return Ok(());
             }
 
-            let child = process::Command::new(&name)
+            let child = process::Command::new(name)
                 .current_dir(self.cwd.to_path_buf())
-                .args(&args)
+                .args(&cmd.args)
                 .spawn()
                 .expect("failed to spawn");
             let pid = child.id();
@@ -265,8 +268,28 @@ impl ShellContext {
         let _ = self.shell_variables.insert(name, value);
     }
 
-    pub fn get_shell_variable_value(&self, name: &String) -> Option<&String> {
+    pub fn get_shell_variable_value(&self, name: &str) -> Option<&String> {
         self.shell_variables.get(name)
+    }
+
+    fn expand_args(&self, args: &[String]) -> Vec<String> {
+        let mut expanded_args = Vec::new();
+
+        for arg in args {
+            let var_names = arg.split('$').collect::<Vec<_>>();
+            let mut expanded = var_names[0].to_string();
+            for var_name in var_names.iter().skip(1) {
+                if let Some(var_value) = self.get_shell_variable_value(var_name) {
+                    expanded.push_str(var_value);
+                } else {
+                    expanded.push('$');
+                    expanded.push_str(var_name);
+                }
+            }
+            expanded_args.push(expanded);
+        }
+
+        expanded_args
     }
 }
 
