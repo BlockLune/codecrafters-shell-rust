@@ -278,15 +278,13 @@ impl ShellContext {
         let mut expanded_args = Vec::new();
 
         for arg in args {
-            let var_names = arg.split('$').collect::<Vec<_>>();
-            let mut expanded = var_names[0].to_string();
-            for var_name in var_names.iter().skip(1) {
-                if let Some(var_value) = self.get_shell_variable_value(var_name) {
-                    expanded.push_str(var_value);
-                } else {
-                    expanded.push('$');
-                    expanded.push_str(var_name);
-                }
+            let mut expanded = arg.to_string();
+            for (var_name, var_value) in &self.shell_variables {
+                let pat = format!("${}", var_name);
+                expanded = expanded.replace(&pat, var_value);
+
+                let pat = format!("${{{}}}", var_name);
+                expanded = expanded.replace(&pat, var_value);
             }
             expanded_args.push(expanded);
         }
