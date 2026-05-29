@@ -306,10 +306,19 @@ fn history_command(
 
 fn declare_command(
     _ctx: &mut ShellContext,
-    _args: Vec<&str>,
+    args: Vec<&str>,
     mut _stdin: Box<dyn Read + Send>,
     mut _stdout: Box<dyn Write + Send>,
-    mut _stderr: Box<dyn Write + Send>,
+    mut stderr: Box<dyn Write + Send>,
 ) {
-    ()
+    if !args.is_empty() {
+        if args[0] == "-p" {
+            if args.len() < 2 {
+                let _ = writeln!(stderr, "declare: {}: option requires an argument", args[0]);
+                return;
+            }
+            let variable_name = args[1];
+            let _ = writeln!(stderr, "declare: {}: not found", variable_name);
+        }
+    }
 }
