@@ -37,6 +37,8 @@ impl ShellContext {
         let mut editor = Editor::with_config(
             rustyline::config::Config::builder()
                 .completion_type(rustyline::CompletionType::List)
+                .history_ignore_dups(false)
+                .map_err(|e| e.to_string())?
                 .build(),
         )
         .map_err(|e| e.to_string())?;
