@@ -271,6 +271,7 @@ impl ShellContext {
 
                 *arg = result;
             }
+            command.args.retain(|a| !a.is_empty());
         }
 
         if parsed_input.run_in_background {
