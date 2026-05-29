@@ -9,7 +9,7 @@ use crate::context::ShellContext;
 use crate::job::Job;
 
 pub const BUILTIN_COMMANDS: &[&str] = &[
-    "exit", "echo", "type", "pwd", "cd", "complete", "jobs", "history",
+    "exit", "echo", "type", "pwd", "cd", "complete", "jobs", "history", "declare"
 ];
 
 #[allow(unused)]
@@ -22,6 +22,7 @@ pub enum Command<'a> {
     BuiltinComplete,
     BuiltinJobs,
     BuiltinHistory,
+    BuiltinDeclare,
     External(&'a str),
 }
 
@@ -43,6 +44,7 @@ impl<'a> Command<'a> {
             "complete" => Self::BuiltinComplete,
             "jobs" => Self::BuiltinJobs,
             "history" => Self::BuiltinHistory,
+            "declare" => Self::BuiltinDeclare,
             external_command => Self::External(external_command),
         }
     }
@@ -64,6 +66,7 @@ impl<'a> Command<'a> {
             Self::BuiltinComplete => complete_command(ctx, args, stdin, stdout, stderr),
             Self::BuiltinJobs => jobs_command(ctx, args, stdin, stdout, stderr),
             Self::BuiltinHistory => history_command(ctx, args, stdin, stdout, stderr),
+            Self::BuiltinDeclare => declare_command(ctx, args, stdin, stdout, stderr),
             Self::External(_) => {}
         }
     }
@@ -299,4 +302,14 @@ fn history_command(
     for (i, history) in ctx.history().iter().enumerate().skip(total - n) {
         let _ = writeln!(stdout, "   {}  {}", i + 1, history);
     }
+}
+
+fn declare_command(
+    _ctx: &mut ShellContext,
+    _args: Vec<&str>,
+    mut _stdin: Box<dyn Read + Send>,
+    mut _stdout: Box<dyn Write + Send>,
+    mut _stderr: Box<dyn Write + Send>,
+) {
+    ()
 }
