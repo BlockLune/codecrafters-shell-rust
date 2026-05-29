@@ -22,6 +22,7 @@ pub struct ShellContext {
     background_jobs: Vec<Job>,
     editor: Editor<ShellHelper, DefaultHistory>,
     history_write_offset: usize,
+    shell_variables: HashMap<String, String>,
 }
 
 impl ShellContext {
@@ -31,6 +32,7 @@ impl ShellContext {
         let external_executables = build_executables();
         let completers = HashMap::new();
         let background_jobs = Vec::new();
+        let shell_variables = HashMap::new();
 
         let mut editor = Editor::with_config(
             rustyline::config::Config::builder()
@@ -49,6 +51,7 @@ impl ShellContext {
             background_jobs,
             editor,
             history_write_offset: 0,
+            shell_variables,
         };
 
         if let Ok(history_file_path) = env::var("HISTFILE") {
@@ -256,6 +259,14 @@ impl ShellContext {
         if let Some(helper) = self.editor.helper_mut() {
             helper.sync_from_context(&self.cwd, &self.completers);
         }
+    }
+
+    pub fn declare_shell_variable(&mut self, name: String, value: String) {
+        let _ = self.shell_variables.insert(name, value);
+    }
+
+    pub fn get_shell_variable_value(&self, name: &String) -> Option<&String> {
+        self.shell_variables.get(name)
     }
 }
 

@@ -9,7 +9,7 @@ use crate::context::ShellContext;
 use crate::job::Job;
 
 pub const BUILTIN_COMMANDS: &[&str] = &[
-    "exit", "echo", "type", "pwd", "cd", "complete", "jobs", "history", "declare"
+    "exit", "echo", "type", "pwd", "cd", "complete", "jobs", "history", "declare",
 ];
 
 #[allow(unused)]
@@ -305,10 +305,10 @@ fn history_command(
 }
 
 fn declare_command(
-    _ctx: &mut ShellContext,
+    ctx: &mut ShellContext,
     args: Vec<&str>,
     mut _stdin: Box<dyn Read + Send>,
-    mut _stdout: Box<dyn Write + Send>,
+    mut stdout: Box<dyn Write + Send>,
     mut stderr: Box<dyn Write + Send>,
 ) {
     if !args.is_empty() {
@@ -317,8 +317,21 @@ fn declare_command(
                 let _ = writeln!(stderr, "declare: {}: option requires an argument", args[0]);
                 return;
             }
-            let variable_name = args[1];
-            let _ = writeln!(stderr, "declare: {}: not found", variable_name);
+            let var_name = args[1].to_string();
+            match ctx.get_shell_variable_value(&var_name) {
+                Some(var_value) => {
+                    let _ = writeln!(stdout, "declare -- {}=\"{}\"", var_name, var_value);
+                }
+                None => {
+                    let _ = writeln!(stderr, "declare: {}: not found", var_name);
+                }
+            }
+            return;
         }
+
+        let variable = args[0].split("=").collect::<Vec<_>>();
+        let var_name = variable[0].to_string();
+        let var_value = variable[1].to_string();
+        ctx.declare_shell_variable(var_name, var_value);
     }
 }
