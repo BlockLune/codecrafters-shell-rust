@@ -334,7 +334,11 @@ fn declare_command(
         let var_value = variable[1].to_string();
 
         if !validate_var_name(&var_name) {
-            let _ = writeln!(stderr, "declare: `{}={}': not a valid identifier", var_name, var_value);
+            let _ = writeln!(
+                stderr,
+                "declare: `{}={}': not a valid identifier",
+                var_name, var_value
+            );
             return;
         }
 
@@ -349,11 +353,11 @@ fn validate_var_name(name: &str) -> bool {
 
     for (i, char) in name.chars().enumerate() {
         if i == 0 {
-            if !char.is_ascii_alphabetic() || char != '_' {
+            if !(char.is_ascii_alphabetic() || char == '_') {
                 return false;
             }
         } else {
-            if !char.is_ascii_digit() || !char.is_ascii_alphabetic() || char != '_' {
+            if !(char.is_ascii_digit() || char.is_ascii_alphabetic() || char == '_') {
                 return false;
             }
         }
