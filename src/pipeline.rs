@@ -2,9 +2,9 @@ use std::io::{self, Read, Write};
 use std::process;
 use std::process::Stdio;
 
-use crate::command::Command;
-use crate::parser::ParsedCommand;
+use crate::command::{Command, CommandReturnType};
 use crate::context::ShellContext;
+use crate::parser::ParsedCommand;
 
 pub fn exec_pipeline(ctx: &mut ShellContext, commands: Vec<ParsedCommand>) {
     let n = commands.len();
@@ -38,7 +38,10 @@ pub fn exec_pipeline(ctx: &mut ShellContext, commands: Vec<ParsedCommand>) {
             };
 
             // TODO: thread?
-            Command::from_str(&command.name).exec(ctx, command.args, stdin, stdout, stderr);
+            match Command::from_str(&command.name).exec(ctx, command.args, stdin, stdout, stderr) {
+                CommandReturnType::Continue => continue,
+                CommandReturnType::Exit(exit_code) => process::exit(exit_code),
+            }
         } else {
             let stdin_cfg = match pipe_reader {
                 Some(r) => Stdio::from(r),

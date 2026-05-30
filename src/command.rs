@@ -1,7 +1,6 @@
 use std::env;
 use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::process;
 
 use rustyline::history::History;
 
@@ -11,6 +10,11 @@ use crate::job::Job;
 pub const BUILTIN_COMMANDS: &[&str] = &[
     "exit", "echo", "type", "pwd", "cd", "complete", "jobs", "history", "declare",
 ];
+
+pub enum CommandReturnType {
+    Continue,
+    Exit(i32),
+}
 
 #[allow(unused)]
 pub enum Command<'a> {
@@ -56,7 +60,7 @@ impl<'a> Command<'a> {
         stdin: Box<dyn Read + Send>,
         stdout: Box<dyn Write + Send>,
         stderr: Box<dyn Write + Send>,
-    ) {
+    ) -> CommandReturnType {
         match self {
             Self::BuiltinExit => exit_command(ctx, args, stdin, stdout, stderr),
             Self::BuiltinEcho => echo_command(ctx, args, stdin, stdout, stderr),
@@ -67,7 +71,7 @@ impl<'a> Command<'a> {
             Self::BuiltinJobs => jobs_command(ctx, args, stdin, stdout, stderr),
             Self::BuiltinHistory => history_command(ctx, args, stdin, stdout, stderr),
             Self::BuiltinDeclare => declare_command(ctx, args, stdin, stdout, stderr),
-            Self::External(_) => {}
+            Self::External(_) => CommandReturnType::Continue,
         }
     }
 }
@@ -78,7 +82,7 @@ fn exit_command(
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
     mut stderr: Box<dyn Write + Send>,
-) {
+) -> CommandReturnType {
     let _ = writeln!(stdout, "exit");
 
     let write_history_on_exit = |ctx: &mut ShellContext| {
@@ -91,26 +95,34 @@ fn exit_command(
 
     if args.is_empty() {
         match write_history_on_exit(ctx) {
-            Ok(_) => process::exit(0),
+            Ok(_) => {
+                return CommandReturnType::Exit(0);
+            }
             Err(e) => {
                 let _ = writeln!(stderr, "{}", e);
+                return CommandReturnType::Continue;
             }
         }
     } else if args.len() >= 2 {
         let _ = writeln!(stderr, "exit: too many arguments");
+        return CommandReturnType::Continue;
     } else {
         let _ = match args[0].parse::<i32>() {
             Ok(ret) => match write_history_on_exit(ctx) {
-                Ok(_) => process::exit(ret),
+                Ok(_) => CommandReturnType::Exit(ret),
                 Err(e) => {
                     let _ = writeln!(stderr, "{}", e);
+                    CommandReturnType::Continue
                 }
             },
             Err(_) => {
                 let _ = writeln!(stderr, "exit: {}: numeric argument required", args[0]);
+                CommandReturnType::Continue
             }
         };
     }
+
+    CommandReturnType::Continue
 }
 
 fn echo_command(
@@ -119,8 +131,9 @@ fn echo_command(
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
     mut _stderr: Box<dyn Write + Send>,
-) {
+) -> CommandReturnType {
     let _ = writeln!(stdout, "{}", args.join(" "));
+    CommandReturnType::Continue
 }
 
 fn type_command(
@@ -129,7 +142,7 @@ fn type_command(
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
     mut _stderr: Box<dyn Write + Send>,
-) {
+) -> CommandReturnType {
     for command in &args {
         if Command::is_builtin(command) {
             let _ = writeln!(stdout, "{} is a shell builtin", command);
@@ -147,6 +160,8 @@ fn type_command(
             }
         }
     }
+
+    CommandReturnType::Continue
 }
 
 fn pwd_command(
@@ -155,9 +170,10 @@ fn pwd_command(
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
     mut _stderr: Box<dyn Write + Send>,
-) {
+) -> CommandReturnType {
     let path = ctx.cwd();
     let _ = writeln!(stdout, "{}", path.display());
+    CommandReturnType::Continue
 }
 
 fn cd_command(
@@ -166,10 +182,10 @@ fn cd_command(
     mut _stdin: Box<dyn Read + Send>,
     mut _stdout: Box<dyn Write + Send>,
     mut stderr: Box<dyn Write + Send>,
-) {
+) -> CommandReturnType {
     if args.len() > 1 {
         let _ = writeln!(stderr, "cd: too many arguments");
-        return;
+        return CommandReturnType::Continue;
     }
 
     let path = if args.is_empty() || args[0] == "~" {
@@ -181,6 +197,8 @@ fn cd_command(
     let _ = ctx
         .cd(path.clone())
         .map_err(|e| writeln!(stderr, "cd: {}: {}", path.display(), e));
+
+    CommandReturnType::Continue
 }
 
 fn complete_command(
@@ -189,7 +207,7 @@ fn complete_command(
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
     mut stderr: Box<dyn Write + Send>,
-) {
+) -> CommandReturnType {
     let mut print_flag = false;
     let mut unregister_flag = false;
     let mut completer_path: Option<PathBuf> = None;
@@ -203,7 +221,7 @@ fn complete_command(
         } else if arg == "-C" {
             if i + 1 >= args.len() {
                 let _ = writeln!(stderr, "complete: -C: option requires an argument");
-                return;
+                return CommandReturnType::Continue;
             }
             completer_path = Some(PathBuf::from(&args[i + 1]));
 
@@ -239,6 +257,8 @@ fn complete_command(
             }
         }
     }
+
+    CommandReturnType::Continue
 }
 
 fn jobs_command(
@@ -247,7 +267,7 @@ fn jobs_command(
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
     mut _stderr: Box<dyn Write + Send>,
-) {
+) -> CommandReturnType {
     let jobs = ctx.jobs();
     let statuses = Job::compute_job_status(jobs);
 
@@ -264,6 +284,8 @@ fn jobs_command(
     }
 
     jobs.retain(|job| !job.done);
+
+    CommandReturnType::Continue
 }
 
 fn history_command(
@@ -272,7 +294,7 @@ fn history_command(
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
     mut stderr: Box<dyn Write + Send>,
-) {
+) -> CommandReturnType {
     let total = ctx.history().len();
     let mut n = total;
 
@@ -280,7 +302,7 @@ fn history_command(
         if args[0] == "-r" || args[0] == "-w" || args[0] == "-a" {
             if args.len() < 2 {
                 let _ = writeln!(stderr, "history: {}: option requires an argument", args[0]);
-                return;
+                return CommandReturnType::Continue;
             }
             let file_path = PathBuf::from(&args[1]);
             let result = match args[0].as_str() {
@@ -293,7 +315,7 @@ fn history_command(
             if let Err(e) = result {
                 let _ = writeln!(stderr, "history: {}: {}", args[0], e);
             }
-            return;
+            return CommandReturnType::Continue;
         } else if let Ok(num) = args[0].parse::<usize>() {
             n = num;
         }
@@ -302,6 +324,8 @@ fn history_command(
     for (i, history) in ctx.history().iter().enumerate().skip(total - n) {
         let _ = writeln!(stdout, "   {}  {}", i + 1, history);
     }
+
+    CommandReturnType::Continue
 }
 
 fn declare_command(
@@ -310,12 +334,12 @@ fn declare_command(
     mut _stdin: Box<dyn Read + Send>,
     mut stdout: Box<dyn Write + Send>,
     mut stderr: Box<dyn Write + Send>,
-) {
+) -> CommandReturnType {
     if !args.is_empty() {
         if args[0] == "-p" {
             if args.len() < 2 {
                 let _ = writeln!(stderr, "declare: {}: option requires an argument", args[0]);
-                return;
+                return CommandReturnType::Continue;
             }
             let var_name = args[1].clone();
             match ctx.get_shell_variable_value(&var_name) {
@@ -326,7 +350,7 @@ fn declare_command(
                     let _ = writeln!(stderr, "declare: {}: not found", var_name);
                 }
             }
-            return;
+            return CommandReturnType::Continue;
         }
 
         let variable: Vec<&str> = args[0].split('=').collect();
@@ -339,11 +363,13 @@ fn declare_command(
                 "declare: `{}={}': not a valid identifier",
                 var_name, var_value
             );
-            return;
+            return CommandReturnType::Continue;
         }
 
         ctx.declare_shell_variable(var_name, var_value);
     }
+
+    CommandReturnType::Continue
 }
 
 fn validate_var_name(name: &str) -> bool {
