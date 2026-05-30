@@ -30,7 +30,7 @@ fn strip_background_flag(tokens: &[String]) -> (&[String], bool) {
         return (&[], false);
     }
 
-    let run_in_background = tokens.last().map_or(false, |token| token == "&");
+    let run_in_background = tokens.last().is_some_and(|token| token == "&");
 
     if run_in_background {
         (&tokens[0..tokens.len() - 1], run_in_background)

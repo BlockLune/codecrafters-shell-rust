@@ -16,8 +16,7 @@ pub enum CommandReturnType {
     Exit(i32),
 }
 
-#[allow(unused)]
-pub enum Command<'a> {
+pub enum Command {
     BuiltinExit,
     BuiltinEcho,
     BuiltinType,
@@ -27,15 +26,12 @@ pub enum Command<'a> {
     BuiltinJobs,
     BuiltinHistory,
     BuiltinDeclare,
-    External(&'a str),
+    External,
 }
 
-impl<'a> Command<'a> {
-    pub fn is_builtin(s: &'a str) -> bool {
-        match Self::from_str(s) {
-            Self::External(_) => false,
-            _ => true,
-        }
+impl<'a> Command {
+    pub fn is_builtin(s: &str) -> bool {
+        !matches!(Self::from_str(s), Self::External)
     }
 
     pub fn from_str(s: &'a str) -> Self {
@@ -49,7 +45,7 @@ impl<'a> Command<'a> {
             "jobs" => Self::BuiltinJobs,
             "history" => Self::BuiltinHistory,
             "declare" => Self::BuiltinDeclare,
-            external_command => Self::External(external_command),
+            _ => Self::External,
         }
     }
 
@@ -71,7 +67,7 @@ impl<'a> Command<'a> {
             Self::BuiltinJobs => jobs_command(ctx, args, stdin, stdout, stderr),
             Self::BuiltinHistory => history_command(ctx, args, stdin, stdout, stderr),
             Self::BuiltinDeclare => declare_command(ctx, args, stdin, stdout, stderr),
-            Self::External(_) => CommandReturnType::Continue,
+            Self::External => CommandReturnType::Continue,
         }
     }
 }
@@ -109,20 +105,20 @@ fn exit_command(
     } else {
         let _ = match args[0].parse::<i32>() {
             Ok(ret) => match write_history_on_exit(ctx) {
-                Ok(_) => CommandReturnType::Exit(ret),
+                Ok(_) => {
+                    return CommandReturnType::Exit(ret);
+                }
                 Err(e) => {
                     let _ = writeln!(stderr, "{}", e);
-                    CommandReturnType::Continue
+                    return CommandReturnType::Continue;
                 }
             },
             Err(_) => {
                 let _ = writeln!(stderr, "exit: {}: numeric argument required", args[0]);
-                CommandReturnType::Continue
+                return CommandReturnType::Continue;
             }
         };
     }
-
-    CommandReturnType::Continue
 }
 
 fn echo_command(
@@ -148,13 +144,8 @@ fn type_command(
             let _ = writeln!(stdout, "{} is a shell builtin", command);
         } else {
             let executables = ctx.external_executables();
-            if executables.contains_key(command.as_str()) {
-                let _ = writeln!(
-                    stdout,
-                    "{} is {}",
-                    command,
-                    executables.get(command.as_str()).unwrap().display()
-                );
+            if let Some(path) = executables.get(command.as_str()) {
+                let _ = writeln!(stdout, "{} is {}", command, path.display());
             } else {
                 let _ = writeln!(stdout, "{}: not found", command);
             }
@@ -353,7 +344,12 @@ fn declare_command(
             return CommandReturnType::Continue;
         }
 
-        let variable: Vec<&str> = args[0].split('=').collect();
+        if !args[0].contains('=') {
+            let _ = writeln!(stderr, "declare: `=` not found");
+            return CommandReturnType::Continue;
+        }
+
+        let variable: Vec<&str> = args[0].splitn(2, '=').collect();
         let var_name = variable[0].to_string();
         let var_value = variable[1].to_string();
 

@@ -64,7 +64,9 @@ pub fn tokenize(input: &str) -> Result<Vec<String>, String> {
         return Err(String::from("unclosed"));
     }
 
-    tokens.push(token.clone());
+    if !token.is_empty() {
+        tokens.push(token);
+    }
 
     Ok(tokens)
 }
