@@ -1,6 +1,8 @@
 use std::fmt::Display;
 use std::process::Child;
 
+// bash marks most recent job with +, second most recent with -.
+// this matters for `fg`/`bg` defaults when no job number is given.
 pub enum JobIndicator {
     Current,
     Previous,

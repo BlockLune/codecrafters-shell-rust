@@ -42,6 +42,8 @@ pub fn tokenize(input: &str) -> Result<Vec<String>, String> {
                 }
                 TokenizerState::InSingleQuote | TokenizerState::InDoubleQuote => token.push(' '),
             },
+            // pipe splits at tokenizer level so the state machine can distinguish
+            // literal | inside quotes from the pipeline operator
             '|' => match state {
                 TokenizerState::Normal => {
                     if !token.is_empty() {

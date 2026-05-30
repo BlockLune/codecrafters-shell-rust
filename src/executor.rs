@@ -40,6 +40,7 @@ pub fn execute(ctx: &mut ShellContext, parsed_input: ParsedInput) -> Result<(), 
         return Ok(());
     }
 
+    // single builtin runs in parent process
     if parsed_input.commands.len() == 1 && Command::is_builtin(&parsed_input.commands[0].name) {
         let command = parsed_input.commands.into_iter().next().unwrap();
         let name = command.name.as_str();
@@ -68,6 +69,8 @@ pub fn execute(ctx: &mut ShellContext, parsed_input: ParsedInput) -> Result<(), 
 fn exec_pipeline(ctx: &mut ShellContext, commands: Vec<ParsedCommand>) {
     let n = commands.len();
 
+    // Option::take() enforces each pipe end is consumed exactly once at compile time -
+    // a second .take() returns None, making double-use a visible bug rather than a silent fd leak
     let mut pipes: Vec<_> = (0..n - 1)
         .map(|_| {
             let (r, w) = io::pipe().expect("failed to create pipe");
@@ -147,6 +150,8 @@ fn exec_builtin_parent(
     Command::from_str(name).exec(ctx, args, stdin, stdout, stderr)
 }
 
+// builtins in a pipeline must fork: their stdout needs to feed the next pipe segment,
+// but fork() copies process memory so the child still has ShellContext for execution
 fn exec_builtin_child(
     ctx: &mut ShellContext,
     name: &str,

@@ -19,14 +19,13 @@ pub struct ShellHelper {
 
 impl ShellHelper {
     pub fn new<I>(external_commands: I, cwd: &Path, completers: &HashMap<String, PathBuf>) -> Self
-    where I: IntoIterator<Item = String>
+    where
+        I: IntoIterator<Item = String>,
     {
-        // builtin commands
         let mut commands: Vec<String> = command::BUILTIN_COMMANDS
             .iter()
             .map(|v| v.to_string())
             .collect();
-        // external commands
         commands.extend(external_commands);
 
         commands.sort();

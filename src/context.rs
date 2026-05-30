@@ -20,6 +20,7 @@ pub struct ShellContext {
     completers: HashMap<String, PathBuf>,
     background_jobs: Vec<Job>,
     editor: Editor<ShellHelper, DefaultHistory>,
+    // tracks how far we've persisted so `history -a` only appends new entries, not the whole file
     history_write_offset: usize,
     shell_variables: HashMap<String, String>,
 }
@@ -278,6 +279,8 @@ impl ShellContext {
         Ok(())
     }
 
+    // rustyline owns the Helper, but completions depend on mutable shell state (cwd, completers).
+    // we can't give rustyline a reference into ShellContext, so push a snapshot before each prompt.
     fn sync_helper(&mut self) {
         if let Some(helper) = self.editor.helper_mut() {
             helper.sync_from_context(&self.cwd, &self.completers);
@@ -293,6 +296,7 @@ impl ShellContext {
     }
 }
 
+// scanned once at startup -- newly installed binaries won't be found until shell restart.
 fn build_executables() -> HashMap<String, PathBuf> {
     let mut executables = HashMap::new();
 
@@ -312,6 +316,7 @@ fn build_executables() -> HashMap<String, PathBuf> {
 
         if metadata.is_file() && is_executable(&entry.path()) {
             let executable_name = entry.file_name().to_string_lossy().to_string();
+            // entry().or_insert() gives first-match-wins, matching POSIX PATH precedence.
             executables.entry(executable_name).or_insert(entry.path());
         }
     }
