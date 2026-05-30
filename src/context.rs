@@ -8,11 +8,10 @@ use std::process;
 use rustyline::history::{DefaultHistory, FileHistory, History};
 use rustyline::{Editor, error::ReadlineError};
 
-use crate::command;
+use crate::executor;
 use crate::helper::ShellHelper;
 use crate::job::Job;
 use crate::parser;
-use crate::pipeline;
 use crate::tokenizer;
 
 pub struct ShellContext {
@@ -274,36 +273,7 @@ impl ShellContext {
             command.args.retain(|a| !a.is_empty());
         }
 
-        if parsed_input.run_in_background {
-            if parsed_input.commands.len() != 1 {
-                eprintln!("background pipelines not yet supported");
-                return Ok(());
-            }
-            let cmd = &parsed_input.commands[0];
-            if command::Command::is_builtin(&cmd.name) {
-                eprintln!("background execution of builtins not yet supported");
-                return Ok(());
-            }
-
-            let name = &cmd.name;
-            let command_line = format!("{} {}", name, cmd.args.join(" "));
-
-            if !self.external_executables.contains_key(name.as_str()) {
-                println!("{}: command not found", name);
-                return Ok(());
-            }
-
-            let child = process::Command::new(name)
-                .current_dir(self.cwd.to_path_buf())
-                .args(&cmd.args)
-                .spawn()
-                .expect("failed to spawn");
-            let pid = child.id();
-            let job_number = self.add_background_job(&command_line, child);
-            println!("[{}] {}", job_number, pid);
-        } else {
-            pipeline::exec_pipeline(self, parsed_input.commands);
-        }
+        executor::execute(self, parsed_input)?;
 
         Ok(())
     }

@@ -2,9 +2,44 @@ use std::io::{self, Read, Write};
 use std::process;
 use std::process::Stdio;
 
-use crate::command::{Command, CommandReturnType};
+use crate::command::{self, Command, CommandReturnType};
 use crate::context::ShellContext;
-use crate::parser::ParsedCommand;
+use crate::parser::{ParsedCommand, ParsedInput};
+
+pub fn execute(ctx: &mut ShellContext, parsed_input: ParsedInput) -> Result<(), String> {
+    if parsed_input.run_in_background {
+        if parsed_input.commands.len() != 1 {
+            eprintln!("background pipelines not yet supported");
+            return Ok(());
+        }
+        let cmd = &parsed_input.commands[0];
+        if command::Command::is_builtin(&cmd.name) {
+            eprintln!("background execution of builtins not yet supported");
+            return Ok(());
+        }
+
+        let name = &cmd.name;
+        let command_line = format!("{} {}", name, cmd.args.join(" "));
+
+        if !ctx.external_executables().contains_key(name.as_str()) {
+            println!("{}: command not found", name);
+            return Ok(());
+        }
+
+        let child = process::Command::new(name)
+            .current_dir(ctx.cwd().to_path_buf())
+            .args(&cmd.args)
+            .spawn()
+            .expect("failed to spawn");
+        let pid = child.id();
+        let job_number = ctx.add_background_job(&command_line, child);
+        println!("[{}] {}", job_number, pid);
+    } else {
+        exec_pipeline(ctx, parsed_input.commands);
+    }
+
+    Ok(())
+}
 
 pub fn exec_pipeline(ctx: &mut ShellContext, commands: Vec<ParsedCommand>) {
     let n = commands.len();

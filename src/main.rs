@@ -4,9 +4,9 @@ mod command;
 mod helper;
 mod job;
 mod parser;
-mod pipeline;
 mod context;
 mod tokenizer;
+mod executor;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut shell = ShellContext::new()?;
