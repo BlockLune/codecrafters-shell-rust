@@ -2,6 +2,8 @@ use std::io::{self, Read, Write};
 use std::process;
 use std::process::Stdio;
 
+use fork::{Fork, WEXITSTATUS, WIFEXITED, fork, waitpid};
+
 use crate::command::{self, Command, CommandReturnType};
 use crate::context::ShellContext;
 use crate::parser::{ParsedCommand, ParsedInput};
@@ -34,14 +36,36 @@ pub fn execute(ctx: &mut ShellContext, parsed_input: ParsedInput) -> Result<(), 
         let pid = child.id();
         let job_number = ctx.add_background_job(&command_line, child);
         println!("[{}] {}", job_number, pid);
-    } else {
-        exec_pipeline(ctx, parsed_input.commands);
+
+        return Ok(());
     }
+
+    if parsed_input.commands.len() == 1 && Command::is_builtin(&parsed_input.commands[0].name) {
+        let command = parsed_input.commands.into_iter().next().unwrap();
+        let name = command.name.as_str();
+        let args = command.args;
+        let stdin = Box::new(io::stdin());
+        let stdout: Box<dyn Write + Send> = match command.stdout_redirect {
+            Some(file) => Box::new(file),
+            None => Box::new(io::stdout()),
+        };
+        let stderr: Box<dyn Write + Send> = match command.stderr_redirect {
+            Some(file) => Box::new(file),
+            None => Box::new(io::stderr()),
+        };
+        match exec_builtin_parent(ctx, name, args, stdin, stdout, stderr) {
+            CommandReturnType::Continue => (),
+            CommandReturnType::Exit(exit_code) => process::exit(exit_code),
+        }
+        return Ok(());
+    }
+
+    exec_pipeline(ctx, parsed_input.commands);
 
     Ok(())
 }
 
-pub fn exec_pipeline(ctx: &mut ShellContext, commands: Vec<ParsedCommand>) {
+fn exec_pipeline(ctx: &mut ShellContext, commands: Vec<ParsedCommand>) {
     let n = commands.len();
 
     let mut pipes: Vec<_> = (0..n - 1)
@@ -72,8 +96,7 @@ pub fn exec_pipeline(ctx: &mut ShellContext, commands: Vec<ParsedCommand>) {
                 None => Box::new(io::stderr()),
             };
 
-            // TODO: thread?
-            match Command::from_str(&command.name).exec(ctx, command.args, stdin, stdout, stderr) {
+            match exec_builtin_child(ctx, &command.name, command.args, stdin, stdout, stderr) {
                 CommandReturnType::Continue => continue,
                 CommandReturnType::Exit(exit_code) => process::exit(exit_code),
             }
@@ -110,5 +133,55 @@ pub fn exec_pipeline(ctx: &mut ShellContext, commands: Vec<ParsedCommand>) {
 
     for mut child in children {
         let _ = child.wait();
+    }
+}
+
+fn exec_builtin_parent(
+    ctx: &mut ShellContext,
+    name: &str,
+    args: Vec<String>,
+    stdin: Box<dyn Read + Send>,
+    stdout: Box<dyn Write + Send>,
+    stderr: Box<dyn Write + Send>,
+) -> CommandReturnType {
+    Command::from_str(name).exec(ctx, args, stdin, stdout, stderr)
+}
+
+fn exec_builtin_child(
+    ctx: &mut ShellContext,
+    name: &str,
+    args: Vec<String>,
+    stdin: Box<dyn Read + Send>,
+    stdout: Box<dyn Write + Send>,
+    stderr: Box<dyn Write + Send>,
+) -> CommandReturnType {
+    match fork() {
+        Ok(Fork::Parent(child)) => match waitpid(child) {
+            Ok(status) => {
+                if WIFEXITED(status) {
+                    let code = WEXITSTATUS(status);
+                    if code == 0 {
+                        CommandReturnType::Continue
+                    } else {
+                        CommandReturnType::Exit(code)
+                    }
+                } else {
+                    eprintln!("child failed to exit normally");
+                    CommandReturnType::Exit(1)
+                }
+            }
+            Err(e) => {
+                eprintln!("waitpid failed: {}", e);
+                CommandReturnType::Exit(1)
+            }
+        },
+        Ok(Fork::Child) => match exec_builtin_parent(ctx, name, args, stdin, stdout, stderr) {
+            CommandReturnType::Continue => process::exit(0),
+            CommandReturnType::Exit(code) => process::exit(code),
+        },
+        Err(e) => {
+            eprintln!("Fork failed: {}", e);
+            CommandReturnType::Exit(1)
+        }
     }
 }
