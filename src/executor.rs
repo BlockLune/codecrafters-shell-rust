@@ -1,14 +1,14 @@
+use anyhow::{Context, Result};
+use fork::{Fork, WEXITSTATUS, WIFEXITED, fork, waitpid};
 use std::io::{self, Read, Write};
 use std::process;
 use std::process::Stdio;
-
-use fork::{Fork, WEXITSTATUS, WIFEXITED, fork, waitpid};
 
 use crate::command::{self, Command, CommandReturnType};
 use crate::context::ShellContext;
 use crate::parser::{ParsedCommand, ParsedInput};
 
-pub fn execute(ctx: &mut ShellContext, parsed_input: ParsedInput) -> Result<(), String> {
+pub fn execute(ctx: &mut ShellContext, parsed_input: ParsedInput) -> Result<()> {
     if parsed_input.run_in_background {
         if parsed_input.commands.len() != 1 {
             eprintln!("background pipelines not yet supported");
@@ -61,22 +61,22 @@ pub fn execute(ctx: &mut ShellContext, parsed_input: ParsedInput) -> Result<(), 
         return Ok(());
     }
 
-    exec_pipeline(ctx, parsed_input.commands);
+    exec_pipeline(ctx, parsed_input.commands)?;
 
     Ok(())
 }
 
-fn exec_pipeline(ctx: &mut ShellContext, commands: Vec<ParsedCommand>) {
+fn exec_pipeline(ctx: &mut ShellContext, commands: Vec<ParsedCommand>) -> Result<()> {
     let n = commands.len();
 
     // Option::take() enforces each pipe end is consumed exactly once at compile time -
     // a second .take() returns None, making double-use a visible bug rather than a silent fd leak
     let mut pipes: Vec<_> = (0..n - 1)
         .map(|_| {
-            let (r, w) = io::pipe().expect("failed to create pipe");
-            (Some(r), Some(w))
+            let (r, w) = io::pipe().context("failed to create pipe")?;
+            Ok((Some(r), Some(w)))
         })
-        .collect();
+        .collect::<Result<Vec<_>>>()?;
 
     let mut children = Vec::new();
 
@@ -137,6 +137,8 @@ fn exec_pipeline(ctx: &mut ShellContext, commands: Vec<ParsedCommand>) {
     for mut child in children {
         let _ = child.wait();
     }
+
+    Ok(())
 }
 
 fn exec_builtin_parent(

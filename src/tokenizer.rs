@@ -1,3 +1,5 @@
+use anyhow::{Result, bail};
+
 #[derive(PartialEq)]
 enum TokenizerState {
     Normal,
@@ -5,7 +7,7 @@ enum TokenizerState {
     InDoubleQuote,
 }
 
-pub fn tokenize(input: &str) -> Result<Vec<String>, String> {
+pub fn tokenize(input: &str) -> Result<Vec<String>> {
     let mut tokens: Vec<String> = Vec::new();
     let mut token: String = String::new();
     let mut state = TokenizerState::Normal;
@@ -61,7 +63,7 @@ pub fn tokenize(input: &str) -> Result<Vec<String>, String> {
     }
 
     if state != TokenizerState::Normal {
-        return Err(String::from("unclosed"));
+        bail!("unclosed quote");
     }
 
     if !token.is_empty() {

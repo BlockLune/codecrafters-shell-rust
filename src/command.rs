@@ -81,12 +81,11 @@ fn exit_command(
 ) -> CommandReturnType {
     let _ = writeln!(stdout, "exit");
 
-    let write_history_on_exit = |ctx: &mut ShellContext| {
+    let write_history_on_exit = |ctx: &mut ShellContext| -> anyhow::Result<()> {
         if let Ok(history_file_path) = env::var("HISTFILE") {
-            ctx.write_history_to_file(&PathBuf::from(history_file_path), true)
-        } else {
-            Ok(())
+            ctx.write_history_to_file(&PathBuf::from(history_file_path), true)?;
         }
+        Ok(())
     };
 
     if args.is_empty() {

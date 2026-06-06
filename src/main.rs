@@ -1,3 +1,5 @@
+use anyhow::Result;
+
 use crate::context::ShellContext;
 
 mod command;
@@ -8,7 +10,7 @@ mod context;
 mod tokenizer;
 mod executor;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<()> {
     let mut shell = ShellContext::new()?;
     shell.run();
     Ok(())

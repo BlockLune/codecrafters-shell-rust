@@ -1,3 +1,4 @@
+use anyhow::{Context, Result, bail};
 use std::fs::File;
 
 pub struct ParsedInput {
@@ -12,7 +13,7 @@ pub struct ParsedCommand {
     pub stderr_redirect: Option<File>,
 }
 
-pub fn parse_input(tokens: &[String]) -> Result<ParsedInput, String> {
+pub fn parse_input(tokens: &[String]) -> Result<ParsedInput> {
     let (tokens, run_in_background) = strip_background_flag(tokens);
     let commands: Vec<ParsedCommand> = split_pipeline(tokens)
         .iter()
@@ -52,9 +53,12 @@ fn split_pipeline<'a>(tokens: &'a [String]) -> Vec<&'a [String]> {
     commands
 }
 
-fn parse_command(tokens: &[String]) -> Result<ParsedCommand, String> {
+fn parse_command(tokens: &[String]) -> Result<ParsedCommand> {
     let command: String = tokens.first().unwrap().to_string();
-    let mut args: Vec<String> = tokens[1..tokens.len()].iter().map(|s| s.to_string()).collect();
+    let mut args: Vec<String> = tokens[1..tokens.len()]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
     let mut stdout_redirect = None;
     let mut stderr_redirect = None;
 
@@ -69,7 +73,7 @@ fn parse_command(tokens: &[String]) -> Result<ParsedCommand, String> {
             || token == "2>>"
         {
             if i + 1 >= args.len() {
-                return Err(String::from("no redirection target"));
+                bail!("no redirection target for `{}`", token);
             }
             let filepath = &args[i + 1];
             match token.as_str() {
@@ -94,12 +98,11 @@ fn parse_command(tokens: &[String]) -> Result<ParsedCommand, String> {
     })
 }
 
-fn create_fd(filepath: &str, appending: bool) -> Result<File, String> {
-    let file = if appending {
+fn create_fd(filepath: &str, appending: bool) -> Result<File> {
+    if appending {
         File::options().append(true).create(true).open(filepath)
     } else {
         File::create(filepath)
-    };
-
-    file.map_err(|_| format!("failed to create file: {}", filepath))
+    }
+    .with_context(|| format!("failed to create file: {}", filepath))
 }

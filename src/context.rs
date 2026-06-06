@@ -5,6 +5,7 @@ use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::process;
 
+use anyhow::{Context, Result, bail};
 use rustyline::history::{DefaultHistory, FileHistory, History};
 use rustyline::{Editor, error::ReadlineError};
 
@@ -26,9 +27,8 @@ pub struct ShellContext {
 }
 
 impl ShellContext {
-    pub fn new() -> Result<Self, String> {
-        let cwd =
-            env::current_dir().map_err(|_| String::from("failed to get current directory"))?;
+    pub fn new() -> Result<Self> {
+        let cwd = env::current_dir().context("failed to get current directory")?;
         let external_executables = build_executables();
         let completers = HashMap::new();
         let background_jobs = Vec::new();
@@ -37,11 +37,9 @@ impl ShellContext {
         let mut editor = Editor::with_config(
             rustyline::config::Config::builder()
                 .completion_type(rustyline::CompletionType::List)
-                .history_ignore_dups(false)
-                .map_err(|e| e.to_string())?
+                .history_ignore_dups(false)?
                 .build(),
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
 
         let helper = ShellHelper::new(external_executables.keys().cloned(), &cwd, &completers);
         editor.set_helper(Some(helper));
@@ -57,8 +55,7 @@ impl ShellContext {
         };
 
         if let Ok(history_file_path) = env::var("HISTFILE") {
-            ctx.read_history_from_file(&PathBuf::from(history_file_path))
-                .map_err(|e| e.to_string())?;
+            ctx.read_history_from_file(&PathBuf::from(history_file_path))?;
             ctx.history_write_offset = ctx.editor.history().len();
         }
 
@@ -69,7 +66,7 @@ impl ShellContext {
         &self.cwd
     }
 
-    pub fn cd(&mut self, path: PathBuf) -> Result<(), String> {
+    pub fn cd(&mut self, path: PathBuf) -> Result<()> {
         let target = if path.is_absolute() {
             path
         } else {
@@ -78,10 +75,10 @@ impl ShellContext {
 
         let canonicalized = target
             .canonicalize()
-            .map_err(|_| String::from("No such file or directory"))?;
+            .with_context(|| format!("No such file or directory: {}", target.display()))?;
 
         if !canonicalized.is_dir() {
-            return Err(String::from("Not a directory"));
+            bail!("Not a directory: {}", canonicalized.display());
         }
 
         self.cwd = canonicalized;
@@ -145,42 +142,42 @@ impl ShellContext {
         self.editor.history()
     }
 
-    pub fn read_history_from_file(&mut self, path: &Path) -> Result<(), String> {
-        let file = File::open(&path).map_err(|e| e.to_string())?;
+    pub fn read_history_from_file(&mut self, path: &Path) -> Result<()> {
+        let file = File::open(path)
+            .with_context(|| format!("failed to open history file: {}", path.display()))?;
         let reader = BufReader::new(file);
         for line in reader.lines() {
             if let Ok(line) = line {
                 if !line.is_empty() {
-                    self.editor
-                        .add_history_entry(&line)
-                        .map_err(|e| e.to_string())?;
+                    self.editor.add_history_entry(&line)?;
                 }
             }
         }
         Ok(())
     }
 
-    pub fn write_history_to_file(&mut self, path: &Path, append: bool) -> Result<(), String> {
+    pub fn write_history_to_file(&mut self, path: &Path, append: bool) -> Result<()> {
         let offset = if append { self.history_write_offset } else { 0 };
 
         let file = if append {
-            File::options()
-                .append(true)
-                .create(true)
-                .open(path)
-                .map_err(|e| e.to_string())?
+            File::options().append(true).create(true).open(path)
         } else {
             File::options()
                 .write(true)
                 .truncate(true)
                 .create(true)
                 .open(path)
-                .map_err(|e| e.to_string())?
-        };
+        }
+        .with_context(|| format!("failed to open history file: {}", path.display()))?;
+
         let mut writer = BufWriter::new(file);
         for entry in self.editor.history().iter().skip(offset) {
-            let _ = writer.write_all(entry.as_bytes());
-            let _ = writer.write_all(b"\n");
+            writer
+                .write_all(entry.as_bytes())
+                .context("failed to write history entry")?;
+            writer
+                .write_all(b"\n")
+                .context("failed to write history newline")?;
         }
 
         if append {
@@ -198,7 +195,7 @@ impl ShellContext {
         }
     }
 
-    fn one_turn(&mut self) -> Result<(), String> {
+    fn one_turn(&mut self) -> Result<()> {
         self.reap_done_jobs();
         self.sync_helper();
 
@@ -212,11 +209,11 @@ impl ShellContext {
                 println!(r#"Use "exit" to leave the shell."#);
                 Ok(())
             }
-            Err(e) => Err(format!("readline error: {}", e)),
+            Err(e) => Err(anyhow::Error::from(e).context("readline error")),
         }
     }
 
-    fn eval_line(&mut self, line: String) -> Result<(), String> {
+    fn eval_line(&mut self, line: String) -> Result<()> {
         let _ = self.editor.add_history_entry(line.as_str());
 
         let tokens = tokenizer::tokenize(&line)?;
