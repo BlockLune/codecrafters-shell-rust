@@ -73,9 +73,7 @@ impl ShellContext {
             self.cwd.join(path)
         };
 
-        let canonicalized = target
-            .canonicalize()
-            .with_context(|| format!("No such file or directory: {}", target.display()))?;
+        let canonicalized = target.canonicalize().context("No such file or directory")?;
 
         if !canonicalized.is_dir() {
             bail!("Not a directory: {}", canonicalized.display());
