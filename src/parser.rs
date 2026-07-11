@@ -36,11 +36,11 @@ fn strip_background_flag(tokens: &[String]) -> (&[String], bool) {
     if run_in_background {
         (&tokens[0..tokens.len() - 1], run_in_background)
     } else {
-        (&tokens, run_in_background)
+        (tokens, run_in_background)
     }
 }
 
-fn split_pipeline<'a>(tokens: &'a [String]) -> Vec<&'a [String]> {
+fn split_pipeline(tokens: &[String]) -> Vec<&[String]> {
     let mut commands: Vec<&[String]> = Vec::new();
     let mut start = 0;
     for (i, token) in tokens.iter().enumerate() {

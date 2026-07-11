@@ -29,7 +29,7 @@ pub fn execute(ctx: &mut ShellContext, parsed_input: ParsedInput) -> Result<()> 
         }
 
         let child = process::Command::new(name)
-            .current_dir(ctx.cwd().to_path_buf())
+            .current_dir(ctx.cwd())
             .args(&cmd.args)
             .spawn()
             .expect("failed to spawn");

@@ -91,16 +91,16 @@ fn exit_command(
     if args.is_empty() {
         match write_history_on_exit(ctx) {
             Ok(_) => {
-                return CommandReturnType::Exit(0);
+                CommandReturnType::Exit(0)
             }
             Err(e) => {
                 let _ = writeln!(stderr, "{}", e);
-                return CommandReturnType::Continue;
+                CommandReturnType::Continue
             }
         }
     } else if args.len() >= 2 {
         let _ = writeln!(stderr, "exit: too many arguments");
-        return CommandReturnType::Continue;
+        CommandReturnType::Continue
     } else {
         let _ = match args[0].parse::<i32>() {
             Ok(ret) => match write_history_on_exit(ctx) {

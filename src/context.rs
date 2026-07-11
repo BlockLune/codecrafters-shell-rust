@@ -145,11 +145,10 @@ impl ShellContext {
             .with_context(|| format!("failed to open history file: {}", path.display()))?;
         let reader = BufReader::new(file);
         for line in reader.lines() {
-            if let Ok(line) = line {
-                if !line.is_empty() {
+            if let Ok(line) = line
+                && !line.is_empty() {
                     self.editor.add_history_entry(&line)?;
                 }
-            }
         }
         Ok(())
     }
@@ -251,7 +250,7 @@ impl ShellContext {
                     }
 
                     let mut var_name = String::new();
-                    while let Some(ch) = chars.next() {
+                    for ch in chars.by_ref() {
                         if ch.is_whitespace() {
                             break;
                         }

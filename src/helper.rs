@@ -72,7 +72,7 @@ impl ShellHelper {
                     return None;
                 }
 
-                if entry.file_type().map_or(false, |ft| ft.is_dir()) {
+                if entry.file_type().is_ok_and(|ft| ft.is_dir()) {
                     name.push('/');
                 }
 
@@ -159,7 +159,7 @@ impl Completer for ShellHelper {
             let args = vec![command, prefix, preceding_word];
 
             match self.completers.get(command) {
-                Some(ref completer) => self.complete_with_completer(completer, args, line, pos),
+                Some(completer) => self.complete_with_completer(completer, args, line, pos),
                 None => self.complete_path(prefix),
             }
         };
